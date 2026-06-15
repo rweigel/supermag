@@ -16,16 +16,22 @@ def data(userid, stationid, start, extent,
             format='json',
             cache=True,
             ignore_cache=False,
-            output_dir=None):
+            cache_dir=None):
 
   logger.debug(f"data() called with stationid={stationid}, start={start}, extent={extent}, "
                f"baseline={baseline}, delta={delta}, extra_parameters={extra_parameters}, "
-               f"format={format}, cache={cache}, ignore_cache={ignore_cache}, output_dir={output_dir}")
+               f"format={format}, cache={cache}, ignore_cache={ignore_cache}, cache_dir={cache_dir}")
 
-  if output_dir is None:
-    output_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
+  if not userid:
+    raise ValueError("userid is required")
+
+  if userid == 'USERID':
+    raise ValueError("Provide a valid SuperMAG userid instead of the placeholder 'USERID'")
+
+  if cache_dir is None:
+    cache_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
   else:
-    output_dir = pathlib.Path(output_dir)
+    cache_dir = pathlib.Path(cache_dir)
 
   # Preserve the originally requested extent for sub-setting
   requested_extent = extent
@@ -37,7 +43,7 @@ def data(userid, stationid, start, extent,
 
   # Try to load from cache
   if cache and not ignore_cache:
-    data_json = _cache_read(stationid, delta, start, output_dir, format='json')
+    data_json = _cache_read(stationid, delta, start, cache_dir, format='json')
     if data_json is not None:
       data_json = _subset_json(data_json, start, requested_extent)
       if format == 'json':
@@ -47,7 +53,7 @@ def data(userid, stationid, start, extent,
       except Exception as error:
         return None, {'url': None, 'error': str(error)}
   elif cache and ignore_cache:
-    _, cache_json_file, _ = _cache_paths(stationid, delta, start, output_dir)
+    _, cache_json_file, _ = _cache_paths(stationid, delta, start, cache_dir)
     if cache_json_file.exists():
       logger.debug(f"Ignoring cache hit: {cache_json_file}")
 
@@ -88,7 +94,7 @@ def data(userid, stationid, start, extent,
     return None, {'url': url, 'error': str(error)}
 
   if cache:
-    _cache_write(stationid, delta, start, data_json, output_dir)
+    _cache_write(stationid, delta, start, data_json, cache_dir)
     data_json = _subset_json(data_json, start, requested_extent)
 
   if format == 'json':
@@ -271,18 +277,18 @@ def _subset_json(data_json, start, extent):
   return [row for row in data_json if start_ts <= row['tval'] < stop_ts]
 
 
-def _cache_paths(stationid, delta, start, output_dir):
+def _cache_paths(stationid, delta, start, cache_dir):
   date_str = str(start)[:10]
   delta_str = str(delta) if delta is not None else 'none'
-  cache_dir = output_dir / 'cache' / stationid.upper() / delta_str
+  cache_dir = cache_dir / stationid.upper() / delta_str
   return cache_dir, cache_dir / f'{date_str}.json.pkl', cache_dir / f'{date_str}.dataframe.pkl'
 
 
-def _cache_read(stationid, delta, start, output_dir, format='json'):
+def _cache_read(stationid, delta, start, cache_dir, format='json'):
   """Return cached data_json (or _reformatted) if available, else return None."""
   import pickle
 
-  _, cache_json_file, _ = _cache_paths(stationid, delta, start, output_dir)
+  _, cache_json_file, _ = _cache_paths(stationid, delta, start, cache_dir)
   if not cache_json_file.exists():
     return None
   logger.debug(f"Cache hit: {cache_json_file}")
@@ -297,14 +303,14 @@ def _cache_read(stationid, delta, start, output_dir, format='json'):
     return None
 
 
-def _cache_write(stationid, delta, start, data_json, output_dir):
+def _cache_write(stationid, delta, start, data_json, cache_dir):
   """Write data_json and its dataframe form to the cache. No-op if data_json is falsy."""
   import pickle
 
   if not data_json:
     return
 
-  cache_dir, cache_json_file, cache_df_file = _cache_paths(stationid, delta, start, output_dir)
+  cache_dir, cache_json_file, cache_df_file = _cache_paths(stationid, delta, start, cache_dir)
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   with cache_json_file.open('wb') as f:
@@ -325,25 +331,25 @@ def _cache_write(stationid, delta, start, data_json, output_dir):
 def parse_args():
   import argparse
 
+  default_station = 'ABK'
   default_start = '2001-01-01T00:00:00.000000Z'
-  default_stop  = '2001-01-01T00:01:00.000000Z'
-  default_output_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
+  default_stop  = '2001-01-01T00:00:01.000000Z'
+  default_cache_dir = '.'
 
   parser = argparse.ArgumentParser(
     description='Fetch SuperMAG station data via data().',
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       'Examples:\n'
+      '  supermag-data --userid USER\n'
       '  supermag-data --userid USER --station ABK\n'
       '  supermag-data --userid USER --station ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
-      '  supermag-data --userid USER --station ABK --no-cache\n'
-      '  supermag-data --userid USER --station ABK --ignore-cache --debug\n'
     ),
   )
   parser.add_argument(
     '--station',
-    default='ABK',
-    help='SuperMAG station ID. Default: ABK.',
+    default=default_station,
+    help=f'SuperMAG station ID. Default: {default_station}.',
   )
   parser.add_argument(
     '--userid',
@@ -389,10 +395,10 @@ def parse_args():
     help='Re-fetch even if a cache file exists.'
   )
   parser.add_argument(
-    '--output-dir',
-    default=default_output_dir,
+    '--cache-dir',
+    default=default_cache_dir,
     type=pathlib.Path,
-    help=f'Base directory for cache storage. Default: {default_output_dir}.'
+    help=f'Base directory for cache storage. Default: {default_cache_dir}.'
   )
   parser.add_argument(
     '--debug',
@@ -431,18 +437,15 @@ def main():
   for arg in vars(args):
     logger.debug(f"{arg}: {getattr(args, arg)}")
 
-  result, error = data(
-    args.userid,
-    args.station,
-    args.start,
-    args.extent,
-    baseline=args.baseline,
-    delta=args.delta,
-    format=args.format,
-    cache=args.cache,
-    ignore_cache=args.ignore_cache,
-    output_dir=args.output_dir,
-  )
+  kwargs = {
+    'baseline': args.baseline,
+    'delta': args.delta,
+    'format': args.format,
+    'cache': args.cache,
+    'ignore_cache': args.ignore_cache,
+    'cache_dir': args.cache_dir
+  }
+  result, error = data(args.userid, args.station, args.start, args.extent, **kwargs)
 
   if error is not None:
     logger.error(f"Error: {error}")
