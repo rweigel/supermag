@@ -18,6 +18,10 @@ def data(userid, stationid, start, extent,
             ignore_cache=False,
             output_dir=None):
 
+  logger.debug(f"data() called with stationid={stationid}, start={start}, extent={extent}, "
+               f"baseline={baseline}, delta={delta}, extra_parameters={extra_parameters}, "
+               f"format={format}, cache={cache}, ignore_cache={ignore_cache}, output_dir={output_dir}")
+
   if output_dir is None:
     output_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
   else:

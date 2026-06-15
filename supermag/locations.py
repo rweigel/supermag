@@ -4,18 +4,71 @@ Usage:
   supermag-locations
 """
 
-description = """Reads inventory.json and fetches data on each station's first
-and last available day to get geographic latitude and longitude. Writes results
-to locations.json.
-"""
-
 import logging
 from .util import _path_relative_to_cwd, configure_logging, set_logging_level
 
 logger = configure_logging(__name__, level=logging.INFO)
 
 
-def fetch_location(station_id, isotime, output_dir, value="first", user_id='superhapi', update=False):
+def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, write_output=True, output_file=None):
+
+  if output_file is None:
+    output_file = output_dir / 'locations.json'
+
+  existing_locations = _read_locations(output_dir / 'locations.json')
+
+  locations = {}
+  for entry in inventory:
+    station_id = entry['id']
+
+    existing_location = existing_locations.get(station_id)
+    if not update and existing_location:
+      if _has_location(existing_location.get('start', {})) or _has_location(existing_location.get('stop', {})):
+        logger.debug(f"Station {station_id} already has location, skipping fetch.")
+        _match = _locations_match(existing_location.get('start', {}), existing_location.get('stop', {}))
+        existing_location['geo_location_changed'] = None if _match is None else not _match
+        locations[station_id] = existing_location
+        continue
+
+    stop_isotime = f"{entry['stopDate']}"
+    location_stop, error_stop = _fetch_location(station_id, stop_isotime, output_dir, "last", user_id=user_id, update=update)
+
+    start_isotime = f"{entry['startDate']}"
+    location_start, error_start = _fetch_location(station_id, start_isotime, output_dir, "first", user_id=user_id, update=update)
+
+    if location_start is not None and location_stop is not None and location_start != location_stop:
+      logger.debug(f"Warning: Station {station_id} has different locations at start and stop times.")
+
+    location_start = _location_record(start_isotime, location_start, error_start)
+    location_stop = _location_record(stop_isotime, location_stop, error_stop)
+
+    if _has_location(location_start) or _has_location(location_stop):
+      _match = _locations_match(location_start, location_stop)
+      locations[station_id] = {
+        'geo_location_changed': None if _match is None else not _match,
+        'start': location_start,
+        'stop': location_stop,
+      }
+    else:
+      emsg = f"Failed to fetch location for station {station_id}"
+      if existing_location:
+        logger.debug(f"{emsg}, but existing location found. Keeping existing location.")
+        locations[station_id] = existing_location
+      else:
+        logger.debug(f"{station_id}, and no existing location found. Adding empty location.")
+        locations[station_id] = {
+          'geo_location_changed': None,
+          'start': _location_record('', None, error_start),
+          'stop': _location_record('', None, error_stop)
+        }
+
+  if write_output:
+    _write_locations(locations, output_file)
+
+  return locations
+
+
+def _fetch_location(station_id, isotime, output_dir, value='first', user_id='superhapi', update=False):
   from .data import data as sm_data
 
   extent = 60*60*24  # 1 day
@@ -42,63 +95,6 @@ def fetch_location(station_id, isotime, output_dir, value="first", user_id='supe
     return None, f"Missing 'glat' or 'glon' in data for station {station_id} at time {isotime}"
 
   return (first_row['glat'], first_row['glon']), None
-
-
-def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, write_output=True, output_file=None):
-
-  if output_file is None:
-    output_file = output_dir / 'locations.json'
-
-  existing_locations = _read_locations(output_file)
-
-  locations = {}
-  for entry in inventory:
-    station_id = entry['id']
-
-    existing_location = existing_locations.get(station_id)
-    if not update and existing_location:
-      if _has_location(existing_location.get('start', {})) or _has_location(existing_location.get('stop', {})):
-        logger.debug(f"Station {station_id} already has location, skipping fetch.")
-        _match = _locations_match(existing_location.get('start', {}), existing_location.get('stop', {}))
-        existing_location['geo_location_changed'] = None if _match is None else not _match
-        locations[station_id] = existing_location
-        continue
-
-    stop_isotime = f"{entry['stopDate']}"
-    location_stop, error_stop = fetch_location(station_id, stop_isotime, output_dir, "last", user_id=user_id, update=update)
-
-    start_isotime = f"{entry['startDate']}"
-    location_start, error_start = fetch_location(station_id, start_isotime, output_dir, "first", user_id=user_id, update=update)
-
-    if location_start is not None and location_stop is not None and location_start != location_stop:
-      logger.debug(f"Warning: Station {station_id} has different locations at start and stop times.")
-
-    start_location = _location_record(start_isotime, location_start, error_start)
-    stop_location = _location_record(stop_isotime, location_stop, error_stop)
-
-    if _has_location(start_location) or _has_location(stop_location):
-      _match = _locations_match(start_location, stop_location)
-      locations[station_id] = {
-        'geo_location_changed': None if _match is None else not _match,
-        'start': start_location,
-        'stop': stop_location,
-      }
-    else:
-      if existing_location:
-        logger.debug(f"Failed to fetch location for station {station_id}, but existing location found. Keeping existing location.")
-        locations[station_id] = existing_location
-      else:
-        logger.debug(f"Failed to fetch location for station {station_id}, and no existing location found. Adding empty location.")
-        locations[station_id] = {
-          'geo_location_changed': None,
-          'start': _location_record('', None, error_start),
-          'stop': _location_record('', None, error_stop)
-        }
-
-  if write_output:
-    _write_locations(locations, output_file)
-
-  return locations
 
 
 def _has_location(location_record):
@@ -230,11 +226,19 @@ def parse_args():
   from pathlib import Path
 
 
+  description = """Reads inventory.json and fetches data on each station's first
+  and last available day to get geographic latitude and longitude. Writes results
+  to locations.json.
+  """
+
+
   parser = argparse.ArgumentParser(
     description=description
   )
+
   inventory_file = Path(__file__).resolve().parent.parent / 'data' / 'inventory.json'
-  output_dir = Path(__file__).resolve().parent.parent / 'data'
+  output_dir = "."
+
   parser.add_argument(
     '--inventory-file',
     default=inventory_file,
@@ -272,11 +276,15 @@ def main():
   args = parse_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG, [__name__])
+    from supermag import data as _data_module
+    set_logging_level(logging.DEBUG, [__name__, _data_module.__name__])
     logger.debug('Debug logging enabled')
 
   logger.debug(f"Reading {args.inventory_file}")
   inventory = json.loads(args.inventory_file.read_text())
+
+  if not isinstance(inventory, list):
+    raise ValueError(f"Inventory file {args.inventory_file} does not contain a list of stations")
 
   if args.station_id is not None:
     inventory = [entry for entry in inventory if entry.get('id') == args.station_id]
@@ -289,13 +297,14 @@ def main():
     output_file = args.output_dir / 'partial' / f'locations-{args.station_id}.json'
 
   logger.debug(f"Found {len(inventory)} stations")
-  fetch_locations(
-    inventory,
-    args.output_dir,
-    update=args.update,
-    write_output=True,
-    output_file=output_file,
-  )
+
+  kwargs = {
+    'update': args.update,
+    'write_output': True,
+    'output_file': output_file,
+    'user_id': 'superhapi'
+  }
+  fetch_locations(inventory, args.output_dir, **kwargs)
 
 
 if __name__ == '__main__':

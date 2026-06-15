@@ -1,7 +1,4 @@
 """
-Writes combined inventory file ../data/inventory.json based on content of files
-in ../data/inventories
-
 For usage, see:
   supermag-inventory --help
 
@@ -24,7 +21,8 @@ logger = configure_logging(__name__, level=logging.INFO)
 
 BASE_URL = "https://supermag.jhuapl.edu/lib/services/inventory.php"
 
-def create_combined_inventory(start, stop, output_dir,
+
+def create_combined_inventory(start, stop, output_dir=".",
                               update_inventory=False,
                               update_locations=False,
                               station_id=None,
@@ -32,26 +30,30 @@ def create_combined_inventory(start, stop, output_dir,
                               timeout=5,
                               delay=0.0):
 
-  inventories = get_inventories(start, stop,
-                                output_dir=output_dir,
-                                update=update_inventory,
-                                timeout=timeout,
-                                delay=delay)
+  kwargs = {
+    'output_dir': output_dir,
+    'update': update_inventory,
+    'timeout': timeout,
+    'delay': delay
+  }
+  inventories = get_inventories(start, stop, **kwargs)
 
-  logger.info(f'Parsing {len(inventories)} inventories')
-  requested_station_id = station_id
+  requested_station_id = station_id # Save original for later
 
-  # Key: station id, value: dict of dates data available
   station_availability = {}
+  """
+  station_availability = {
+    station_id1: [available_date1, available_date2, ...],
+    ...
+  }
+  """
+  logger.info(f'Parsing {len(inventories)} inventories')
   for inventory_date, station_ids in inventories.items():
-
     s = '' if len(station_ids) == 1 else 's'
     logger.info(f'  Found {len(station_ids)} station{s} on {inventory_date}')
     for station_id in station_ids:
-
       if station_id not in station_availability:
         station_availability[station_id] = []
-
       station_availability[station_id].append(inventory_date)
 
 
@@ -82,23 +84,27 @@ def create_combined_inventory(start, stop, output_dir,
       raise ValueError(f"Station ID not found in combined inventory: {requested_station_id}")
     logger.info(f'Filtered inventory to station {requested_station_id}')
 
-  logger.info("Getting geographic locations for each station")
-  geo_locations = _get_locations(
-    inventory,
-    output_dir,
-    start=start,
-    stop=stop,
-    station_id=requested_station_id,
-    partial_output=partial_output,
-    update=update_locations,
-  )
 
-  logger.info("Inventory summary")
+  logger.info("Getting geographic locations for each station")
+  kwargs = {
+    'start': start,
+    'stop': stop,
+    'station_id': requested_station_id,
+    'partial_output': partial_output,
+    'update': update_locations
+  }
+  geo_locations = _get_locations(inventory, output_dir, **kwargs)
+
+
+  logger.info("Adding geographic locations to inventory entries")
   for entry in inventory:
     if entry['id'] in geo_locations:
       location = geo_locations[entry['id']]
       entry['location'] = location
 
+
+  logger.info("Inventory summary")
+  for entry in inventory:
     logger.info(f"{entry['id']}: ")
     logger.info(f"  startDate: {entry['startDate']}")
     logger.info(f"  stopDate:  {entry['stopDate']}")
@@ -114,19 +120,18 @@ def create_combined_inventory(start, stop, output_dir,
         logger.info(f"  Geographic location on {date_key}Date (lat, lon): ({glat}°, {glon}°)")
 
 
-  _write_files(
-    inventory,
-    output_dir,
-    start=start,
-    stop=stop,
-    station_id=requested_station_id,
-    partial_output=partial_output,
-  )
+  kwargs = {
+    'start': start,
+    'stop': stop,
+    'station_id': requested_station_id,
+    'partial_output': partial_output
+  }
+  _write_files(inventory, output_dir, **kwargs)
 
   return inventory
 
 
-def get_inventories(start, stop, output_dir='catalog', update=False, timeout=0.0, delay=5):
+def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, delay=5):
 
   import time
 
@@ -135,7 +140,7 @@ def get_inventories(start, stop, output_dir='catalog', update=False, timeout=0.0
     return dt.datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=dt.timezone.utc)
 
   def inventory_file_path(output_dir, start):
-    return output_dir / f"inventory-{start:%Y-%m-%d}.json"
+    return output_dir / f"{start:%Y-%m-%d}.json"
 
   def write_inventory_file(output_dir, start, payload):
     import json
@@ -149,7 +154,7 @@ def get_inventories(start, stop, output_dir='catalog', update=False, timeout=0.0
   if stop < start:
     raise ValueError('stop must be on or after start')
 
-  inventory_dir = output_dir / 'inventories'
+  inventory_dir = output_dir / "inventory" / "daily"
 
   inventory_data = {}
   requested = 0
@@ -267,7 +272,7 @@ def _date_range(start, stop, format='datetime'):
   return dates
 
 
-def parse_args():
+def _args():
   import argparse
   import sys
   import datetime as dt
@@ -285,7 +290,7 @@ def parse_args():
   epilog += '  supermag-inventory --update-locations\n'
   epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations\n'
 
-  description = 'Fetch daily SuperMAG inventories and create full inventory file.'
+  description = 'Fetch daily SuperMAG inventories and create inventory.json file with list of avaialble dates for each station.'
   description += '\n\nIf --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial\n'
 
   parser = argparse.ArgumentParser(
@@ -298,29 +303,29 @@ def parse_args():
   parser.add_argument(
     '--start',
     default=default_start,
-    help=f'First UTC day to fetch, in YYYY-MM-DD format. Default: {default_start}.',
+    help=f'First UTC day to fetch, in YYYY-MM-DD format. Default: {default_start}',
   )
   parser.add_argument(
     '--stop',
     default=default_stop,
-    help=f'Last UTC day to fetch, in YYYY-MM-DD format. Default: {default_stop}.',
+    help=f'Last UTC day to fetch, in YYYY-MM-DD format. Default: {default_stop}',
   )
   parser.add_argument(
     '--output-dir',
     default=output_dir,
     type=Path,
-    help=f'Base directory for outputs. Default: {_path_relative_to_cwd(output_dir)}.',
+    help=f'Base directory for outputs. Default: {_path_relative_to_cwd(output_dir)}',
   )
   parser.add_argument(
     '--station-id',
     default=None,
-    help='Only include the given station ID in the combined inventory output.',
+    help='Only include the given station ID in the combined inventory output',
   )
   parser.add_argument(
     '--timeout',
     default=default_timeout,
     type=int,
-    help=f'HTTP timeout in seconds for each fetch. Default: {default_timeout}.',
+    help=f'HTTP timeout in seconds for each fetch. Default: {default_timeout}',
   )
   parser.add_argument(
     '--update-inventory',
@@ -336,7 +341,7 @@ def parse_args():
     '--delay',
     default=default_request_delay,
     type=float,
-    help=f'Delay in seconds between actual HTTP requests. Default: {default_request_delay}.',
+    help=f'Delay in seconds between actual HTTP requests. Default: {default_request_delay}',
   )
   parser.add_argument(
     '--debug',
@@ -349,14 +354,15 @@ def parse_args():
 
 
 def main():
-  args = parse_args()
+  args = _args()
 
   if args.debug:
     from supermag import data as _data_module, locations as _loc_module
     set_logging_level(logging.DEBUG, [__name__, _loc_module.__name__, _data_module.__name__])
-    logger.debug('Debug logging enabled')
+    logger.debug('Debug logging enabled.')
 
   kwargs = {
+    'output_dir': args.output_dir,
     'update_inventory': args.update_inventory,
     'update_locations': args.update_locations,
     'station_id': args.station_id,
@@ -365,7 +371,7 @@ def main():
     'delay': args.delay,
   }
 
-  create_combined_inventory(args.start, args.stop, args.output_dir, **kwargs)
+  create_combined_inventory(args.start, args.stop, **kwargs)
 
 
 if __name__ == '__main__':
