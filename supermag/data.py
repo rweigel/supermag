@@ -1,39 +1,57 @@
 
-import pathlib
 import logging
 
-from .util import configure_logging
+try:
+  from .util import configure_logging
+  logger = configure_logging(__name__, level=logging.INFO)
+except:
+  # If util cannot be imported (if this script copied locally), set up a 
+  # basic logger to avoid NameError.
+  logging.basicConfig(level=logging.INFO, format='%(name)s: %(message)s')
+  logger = logging.getLogger(__name__)
 
-logger = configure_logging(__name__, level=logging.INFO)
+# If true, show response data in debug logs.
+debug_response = False
 
-debug_response = False # If true, show response data in debug logs.
-
-# mlt => response includes mlt, and mcolat. All others are single.
+# Note: mlt => response includes mlt, and mcolat. All others are single.
 EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
+
 
 def data(userid, stationid, start, extent,
           baseline='yearly',
           delta='default',
           extra_parameters=EXTRA_PARAMETERS,
           format='json',
+          add_timestamp=False,
           cache=True,
           ignore_cache=False,
           cache_dir=None):
 
-  logger.debug(f"data() called with stationid={stationid}, start={start}, extent={extent}, "
-               f"baseline={baseline}, delta={delta}, extra_parameters={extra_parameters}, "
-               f"format={format}, cache={cache}, ignore_cache={ignore_cache}, cache_dir={cache_dir}")
+  _locals = locals()
+  logger.debug("data() called with arguments:")
+  for arg in _locals:
+    logger.debug(f"  {arg}: {_locals[arg]}")
+
+  import pathlib
 
   if not userid:
-    raise ValueError("userid is required")
+    raise ValueError("SuperMAG user id is required")
 
   if userid == 'USERID':
-    raise ValueError("Provide a valid SuperMAG userid instead of the placeholder 'USERID'")
+    raise ValueError("Provide a valid SuperMAG user id instead of the placeholder 'USERID'")
 
   if cache_dir is None:
     cache_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
   else:
     cache_dir = pathlib.Path(cache_dir)
+
+  if isinstance(extent, str):
+    # compute extent using start and this stop time
+    start_ts = _parse_timestamp(start)
+    stop_ts = _parse_timestamp(extent)
+    if stop_ts <= start_ts:
+      raise ValueError(f"Stop time must be after start time. Got start={start} ({start_ts}), stop={extent} ({stop_ts})")
+    extent = stop_ts - start_ts
 
   # Preserve the originally requested extent for sub-setting
   requested_extent = extent
@@ -42,23 +60,15 @@ def data(userid, stationid, start, extent,
   # When caching, always fetch all extra parameters and a full day
   if cache:
     extra_parameters = EXTRA_PARAMETERS
-    extent = 60 * 60 * 24  # 1 full day
+    seconds_per_day = 60 * 60 * 24
+    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day  # round up to full day(s)
 
   # Try to load from cache
   if cache and not ignore_cache:
-    data_json = _cache_read(stationid, delta, start, cache_dir, format='json')
-    if data_json is not None:
-      data_json = _subset_json(data_json, start, requested_extent, requested_extra_parameters)
-      if format == 'json':
-        return data_json, None
-      try:
-        return _reformat(data_json, format=format), None
-      except Exception as error:
-        return None, {'url': None, 'error': str(error)}
-  elif cache and ignore_cache:
-    _, cache_json_file, _ = _cache_paths(stationid, delta, start, cache_dir)
-    if cache_json_file.exists():
-      logger.debug(f"Ignoring cache hit: {cache_json_file}")
+    result, error = _cache_get(stationid, delta, start, extent, cache_dir,
+                               format, add_timestamp, requested_extent, requested_extra_parameters)
+    if result is not None or error is not None:
+      return result, error
 
 
   # Call the SuperMAG API to get the data
@@ -100,21 +110,15 @@ def data(userid, stationid, start, extent,
 
   if cache:
     _cache_write(stationid, delta, start, data_json, cache_dir)
-    data_json = _subset_json(data_json, start, requested_extent, requested_extra_parameters)
+    data_json = _subset(data_json, start, requested_extent, requested_extra_parameters)
 
-  if format == 'json':
-    return data_json, None
-
-  if format in ('list', 'dataframe', 'csv'):
-    try:
-      result = _reformat(data_json, format=format)
-    except Exception as error:
-      emsg = f"Failed to _reformat data for station {stationid}: {error}"
-      logger.debug(emsg)
-      return None, {'url': url, 'error': emsg}
-    return result, None
-
-  return None, {'url': None, 'error': f'Unknown format: {format}'}
+  try:
+    result = _reformat(data_json, format=format, add_timestamp=add_timestamp)
+  except Exception as error:
+    emsg = f"Failed to _reformat data for station {stationid}: {error}"
+    logger.debug(emsg)
+    return None, {'url': url, 'error': emsg}
+  return result, None
 
 
 def _get(url):
@@ -126,7 +130,7 @@ def _get(url):
   if certspec is not None:
     import certifi
 
-  logger.debug("Fetching URL: %s", url)
+  logger.debug("Getting URL: %s", url)
   try:
     logger.debug("  Trying certifi.where().")
     cafile = certifi.where()
@@ -151,9 +155,26 @@ def _get(url):
     response.release_conn()
     raise urllib3.exceptions.HTTPError(f"HTTP {response.status} for {url}")
 
-  logger.debug("  Fetched URL: %s", url)
+  logger.debug("Got URL: %s", url)
 
   return response
+
+
+def _parse_timestamp(timestamp):
+  """Parse an common ISO6801 string to a Unix timestamp."""
+  from datetime import datetime, timezone
+  timestamp_str = str(timestamp).rstrip('Z').replace(' ', 'T')
+  fmts = ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H', '%Y-%m-%d')
+  for fmt in fmts:
+    try:
+      return datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+      pass
+    try:
+      return datetime.strptime(timestamp_str, fmt + "Z").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+      continue
+  raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
 
 
 def _parse_response(response, format=None):
@@ -189,114 +210,118 @@ def _parse_response(response, format=None):
   return data_json, None
 
 
-def _reformat(data_json, format='list'):
+def _reformat(data, format='dataframe', add_timestamp=False):
+  """Convert data to the requested format.
+
+  `data` may be either a list of dicts (raw JSON records) or a pandas DataFrame.
+  For list input, nested dicts are flattened (e.g. N.nez -> N_nez).
   """
-  data_json is a list of dicts, each dict has the form
-  {
-    'tval': 1573814400.0,
-    'ext': 60.0,
-    'iaga': 'HBK',
-    'glon': 27.709999,
-    'glat': -25.879997,
-    'mlt': 12.647217,
-    'mcolat': 125.510384,
-    'decl': -18.616241,
-    'sza': 13.026016,
-    'N': {'nez': 6.80695, 'geo': 9.677255},
-    'E': {'nez': 10.103335, 'geo': 7.400181},
-    'Z': {'nez': 2.049171, 'geo': 2.049171}
-  }
-  """
+  import pandas
+  from datetime import datetime, timezone
+
+  if format == 'json' and isinstance(data, list):
+    if add_timestamp:
+      result = []
+      for row in data:
+        iso = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
+        result.append({'tval_iso': iso, **row})
+    return data
 
   if format not in ['list', 'dataframe', 'csv']:
     raise ValueError("Invalid format. Must be 'list', 'dataframe', or 'csv'.")
 
-  header = []
-  for key in data_json[0]:
-    if isinstance(data_json[0][key], dict):
-      for subkey in data_json[0][key]:
-        header.append(f"{key}_{subkey}")
-    else:
-      header.append(key)
-
-  if debug_response:
-    logger.debug(f"Header: {header}")
-  # Flatten json_data
-  data_rows = []
-  for entry in data_json:
-    row = []
-    for key in entry:
-      if isinstance(entry[key], dict):
-        for subkey in entry[key]:
-          row.append(entry[key][subkey])
+  # --- Build a flat DataFrame if input is list-of-dicts ---
+  if not isinstance(data, pandas.DataFrame):
+    data_json = data
+    header = []
+    for key in data_json[0]:
+      if isinstance(data_json[0][key], dict):
+        for subkey in data_json[0][key]:
+          header.append(f"{key}_{subkey}")
       else:
-        row.append(entry[key])
-    data_rows.append(row)
-
-  if debug_response:
-    logger.debug(f"Data: {data_rows}")
-
-  if format == 'dataframe' or format == 'csv':
-    import pandas
-    from datetime import datetime, timezone
-
+        header.append(key)
+    if debug_response:
+      logger.debug(f"Header: {header}")
+    data_rows = []
+    for entry in data_json:
+      row = []
+      for key in entry:
+        if isinstance(entry[key], dict):
+          for subkey in entry[key]:
+            row.append(entry[key][subkey])
+        else:
+          row.append(entry[key])
+      data_rows.append(row)
+    if debug_response:
+      logger.debug(f"Data: {data_rows}")
+    if format == 'list':
+      return [header] + data_rows
     df = pandas.DataFrame(data_rows, columns=header)
-
-    # Add a Time column in ISO format
-    df['tval_iso'] = df['tval'].apply(
-      lambda x: datetime.fromtimestamp(x, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
-    )
-
-    # Add a datetime column
-    df['tval_datetime'] = pandas.to_datetime(df.index)
-
-    # Put datetime and Time columns first
-    df = df.loc[:, ['tval_datetime', 'tval_iso'] + header]
-
-    if format == 'csv':
-      return df.to_csv(index=False).rstrip()
-
-    return df
-
-  return [header] + data_rows
-
-
-def _subset_json(data_json, start, extent, extra_parameters):
-  """Return only records within [start, start+extent) and keep only requested extra_parameters."""
-  from datetime import datetime, timezone
-
-  if not data_json or extent is None:
-    return data_json
-
-  # Parse start to a Unix timestamp
-  start_str = str(start).rstrip('Z').replace(' ', 'T')
-  for fmt in ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d'):
-    try:
-      start_dt = datetime.strptime(start_str, fmt).replace(tzinfo=timezone.utc)
-      break
-    except ValueError:
-      continue
   else:
-    logger.debug(f"Could not parse start time for subsetting: {start}")
-    return data_json
+    df = data
 
-  start_ts = start_dt.timestamp()
-  stop_ts = start_ts + extent
+  # --- DataFrame / CSV output ---
+  if add_timestamp and 'tval_iso' not in df.columns:
+    df = df.copy()
+    tval_pos = df.columns.get_loc('tval') if 'tval' in df.columns else 0
+    df.insert(tval_pos, 'tval_iso',
+      df['tval'].apply(lambda x: datetime.fromtimestamp(x, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')))
+
+  if format == 'csv':
+    return df.to_csv(index=False).rstrip()
+
+  # dataframe: always prepend tval_datetime
+  if 'tval_datetime' not in df.columns:
+    df = df.copy()
+    df.insert(0, 'tval_datetime', pandas.to_datetime(df['tval'], unit='s', utc=True))
+
+  return df
+
+
+def _subset(data, start, extent, extra_parameters):
+  """Subset data to [start, start+extent) and keep only requested extra_parameters.
+
+  Accepts either a list of dicts (JSON records) or a pandas DataFrame.
+  """
+
+
+  try:
+    import pandas
+    is_df = isinstance(data, pandas.DataFrame)
+  except ImportError:
+    is_df = False
+
+  start_ts = _parse_timestamp(start)
+  stop_ts = start_ts + extent if extent is not None else None
+
+  extra_keys = set(EXTRA_PARAMETERS + ['mcolat'])
 
   if extra_parameters is None or set(extra_parameters) == set(EXTRA_PARAMETERS):
-    return [row for row in data_json if start_ts <= row['tval'] < stop_ts]
+    requested = None  # keep all
+  else:
+    requested = set(extra_parameters)
+    if 'mlt' in requested:
+      requested.add('mcolat')
 
-  # mlt brings mcolat along
-  requested = set(extra_parameters)
-  if 'mlt' in requested:
-    requested.add('mcolat')
+  if is_df:
+    if not data.empty and stop_ts is not None:
+      data = data[(data['tval'] >= start_ts) & (data['tval'] < stop_ts)]
+    if requested is not None:
+      non_extra = [c for c in data.columns if c not in extra_keys]
+      keep_cols = non_extra + [c for c in data.columns if c in requested]
+      data = data[keep_cols]
+    return data
 
-  # Always keep non-extra keys; add requested extra keys.
-  # Iterate row.items() so output key order matches the original row.
-  extra_keys = set(EXTRA_PARAMETERS + ['mcolat'])
+  # list-of-dicts path
+  if not data or stop_ts is None:
+    return data
+
+  if requested is None:
+    return [row for row in data if start_ts <= row['tval'] < stop_ts]
+
   result = []
-  for row in data_json:
-    if not start_ts <= row['tval']:
+  for row in data:
+    if row['tval'] < start_ts:
       continue
     if row['tval'] >= stop_ts:
       break
@@ -306,64 +331,124 @@ def _subset_json(data_json, start, extent, extra_parameters):
   return result
 
 
-def _cache_paths(stationid, delta, start, cache_dir):
-  date_str = str(start)[:10]
-  delta_str = str(delta) if delta is not None else 'none'
-  cache_dir = cache_dir / stationid.upper() / delta_str
-  return cache_dir, cache_dir / f'{date_str}.json.pkl', cache_dir / f'{date_str}.dataframe.pkl'
+def _cache_get(stationid, delta, start, extent, cache_dir, format,
+               add_timestamp, requested_extent, requested_extra_parameters):
 
+  file_ext = 'json' if format == 'json' else 'dataframe'
+  cached = _cache_read(stationid, delta, start, extent, cache_dir, format=file_ext)
+  if cached is None:
+    return None, None
 
-def _cache_read(stationid, delta, start, cache_dir, format='json'):
-  """Return cached data_json (or _reformatted) if available, else return None."""
-  import pickle
+  data = _subset(cached, start, requested_extent, requested_extra_parameters)
 
-  _, cache_json_file, _ = _cache_paths(stationid, delta, start, cache_dir)
-  if not cache_json_file.exists():
-    return None
-  logger.debug(f"Cache hit: {cache_json_file}")
-  with cache_json_file.open('rb') as f:
-    data_json = pickle.load(f)
-  if format == 'json':
-    return data_json
   try:
-    return _reformat(data_json, format=format)
+    return _reformat(data, format=format, add_timestamp=add_timestamp), None
   except Exception as error:
-    logger.debug(f"Failed to _reformat cached data for station {stationid}: {error}")
+    return None, {'url': None, 'error': str(error)}
+
+
+def _cache_read(stationid, delta, start, extent, cache_dir, format='json'):
+  """Return cached data for all day-chunk files spanning [start, start+extent). Returns None if any chunk is missing."""
+  import pickle
+  from datetime import datetime, timezone, timedelta
+
+  delta_str = str(delta) if delta is not None else 'none'
+  base_dir = cache_dir / stationid.upper() / delta_str
+
+  # Determine which UTC dates are needed
+  start_str = str(start).rstrip('Z').replace(' ', 'T')
+  for fmt in ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d'):
+    try:
+      start_dt = datetime.strptime(start_str, fmt).replace(tzinfo=timezone.utc)
+      break
+    except ValueError:
+      continue
+  else:
     return None
+
+  seconds_per_day = 60 * 60 * 24
+  n_days = max(1, (extent + seconds_per_day - 1) // seconds_per_day) if extent else 1
+  dates = [start_dt.date() + timedelta(days=i) for i in range(n_days)]
+
+  chunks = []
+  for date in dates:
+    cache_file = base_dir / f'{date}.{format}.pkl'
+    if not cache_file.exists():
+      logger.debug(f"Cache miss: {cache_file}")
+      return None
+    logger.debug(f"Cache hit: {cache_file}")
+    with cache_file.open('rb') as f:
+      chunks.append(pickle.load(f))
+
+  if format == 'dataframe':
+    import pandas
+    return pandas.concat(chunks, ignore_index=True)
+
+  # json: list of dicts
+  result = []
+  for chunk in chunks:
+    result.extend(chunk)
+  return result
 
 
 def _cache_write(stationid, delta, start, data_json, cache_dir):
-  """Write data_json and its dataframe form to the cache. No-op if data_json is falsy."""
+  """Write data_json (and a dataframe) to the cache in one-day chunks. No-op if data_json is falsy."""
   import pickle
+  from datetime import datetime, timezone
 
   if not data_json:
     return
 
-  cache_dir, cache_json_file, cache_df_file = _cache_paths(stationid, delta, start, cache_dir)
-  cache_dir.mkdir(parents=True, exist_ok=True)
+  # Group records by date (UTC) derived from tval
+  days = {}
+  for row in data_json:
+    date_str = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%d')
+    days.setdefault(date_str, []).append(row)
 
-  with cache_json_file.open('wb') as f:
-    pickle.dump(data_json, f)
-  if debug_response:
-    logger.debug(f"Cached JSON: {cache_json_file}")
+  delta_str = str(delta) if delta is not None else 'none'
+  base_dir = cache_dir / stationid.upper() / delta_str
+  base_dir.mkdir(parents=True, exist_ok=True)
+
+  for date_str, rows in days.items():
+    # Write JSON chunk
+    cache_json_file = base_dir / f'{date_str}.json.pkl'
+    with cache_json_file.open('wb') as f:
+      pickle.dump(rows, f)
+    logger.debug(f"Wrote: {cache_json_file}")
+
+    # Write dataframe chunk (no extra timestamp columns — plain tval)
+    try:
+      df = _reformat(rows, format='dataframe', add_timestamp=False)
+      # Drop tval_datetime so cached df is plain; it will be added on read
+      if 'tval_datetime' in df.columns:
+        df = df.drop(columns=['tval_datetime'])
+      cache_df_file = base_dir / f'{date_str}.dataframe.pkl'
+      with cache_df_file.open('wb') as f:
+        pickle.dump(df, f)
+      logger.debug(f"Wrote: {cache_df_file}")
+    except Exception as error:
+      logger.debug(f"Failed to write dataframe cache for {date_str}: {error}")
 
 
-def parse_args():
+def _parse_args():
+  import pathlib
   import argparse
 
+  default_cache_dir = '.'
+
+  # If these defaults changed, will need to update tests.
   default_station = 'ABK'
   default_start = '2001-01-01T00:00Z'
   default_stop  = '2001-01-01T00:01Z'
-  default_cache_dir = '.'
 
   parser = argparse.ArgumentParser(
     description='Fetch SuperMAG station data via data().',
     formatter_class=argparse.RawDescriptionHelpFormatter,
     epilog=(
       'Examples:\n'
-      '  supermag-data --userid USER\n'
-      '  supermag-data --userid USER --station ABK\n'
-      '  supermag-data --userid USER --station ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
+      '  supermag-data --userid USERID\n'
+      '  supermag-data --userid USERID --station ABK\n'
+      '  supermag-data --userid USERID --station ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
     ),
   )
   parser.add_argument(
@@ -426,6 +511,11 @@ def parse_args():
     help='Enable debug logging.'
   )
   parser.add_argument(
+    '--add-timestamp',
+    action='store_true',
+    help='Add tval_iso (ISO 8601) as the first column in dataframe and csv output.'
+  )
+  parser.add_argument(
     '--output-dir',
     default=".",
     help='Path to write output file. Ignored if --output-file is given. Default: current directory.'
@@ -469,22 +559,25 @@ def parse_args():
 
 
 def main():
+  # Called when running `python -m supermag.data` or supermag-data from the command line.
+  # Parses command-line arguments, calls data(), and writes output to a file.
+  import pathlib
   from .util import set_logging_level
 
-  check_file = False # If true, read back output file to verify written correctly.
-
-  args = parse_args()
+  args = _parse_args()
 
   if args.debug:
     set_logging_level(logging.DEBUG, [__name__])
 
+  logger.debug("Parsed command-line arguments:")
   for arg in vars(args):
-    logger.debug(f"{arg}: {getattr(args, arg)}")
+    logger.debug(f"  {arg}: {getattr(args, arg)}")
 
   kwargs = {
     'baseline': args.baseline,
     'delta': args.delta,
     'format': args.format,
+    'add_timestamp': args.add_timestamp,
     'cache': args.cache,
     'ignore_cache': args.ignore_cache,
     'cache_dir': args.cache_dir,
@@ -520,6 +613,7 @@ def main():
         pickle.dump(result, f)
 
     logger.info(f"Wrote {output_file}")
+
 
 if __name__ == '__main__':
   main()
