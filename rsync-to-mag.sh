@@ -1,0 +1,1 @@
+rsync -avz --delete ./data weigel@mag.gmu.edu:~/www/git-data/supermag
