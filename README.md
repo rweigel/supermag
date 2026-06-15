@@ -1,0 +1,2 @@
+# supermag
+Alternative SuperMAG API
