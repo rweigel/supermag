@@ -8,15 +8,17 @@ logger = configure_logging(__name__, level=logging.INFO)
 
 debug_response = False # If true, show response data in debug logs.
 
+# mlt => response includes mlt, and mcolat. All others are single.
+EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
 
 def data(userid, stationid, start, extent,
-            baseline='yearly',
-            delta='default',
-            extra_parameters=None,
-            format='json',
-            cache=True,
-            ignore_cache=False,
-            cache_dir=None):
+          baseline='yearly',
+          delta='default',
+          extra_parameters=EXTRA_PARAMETERS,
+          format='json',
+          cache=True,
+          ignore_cache=False,
+          cache_dir=None):
 
   logger.debug(f"data() called with stationid={stationid}, start={start}, extent={extent}, "
                f"baseline={baseline}, delta={delta}, extra_parameters={extra_parameters}, "
@@ -35,17 +37,18 @@ def data(userid, stationid, start, extent,
 
   # Preserve the originally requested extent for sub-setting
   requested_extent = extent
+  requested_extra_parameters = extra_parameters.copy() if extra_parameters else None
 
   # When caching, always fetch all extra parameters and a full day
   if cache:
-    extra_parameters = ['mlt', 'mag', 'geo', 'decl', 'sza', 'glat', 'glon']
+    extra_parameters = EXTRA_PARAMETERS
     extent = 60 * 60 * 24  # 1 full day
 
   # Try to load from cache
   if cache and not ignore_cache:
     data_json = _cache_read(stationid, delta, start, cache_dir, format='json')
     if data_json is not None:
-      data_json = _subset_json(data_json, start, requested_extent)
+      data_json = _subset_json(data_json, start, requested_extent, requested_extra_parameters)
       if format == 'json':
         return data_json, None
       try:
@@ -73,11 +76,13 @@ def data(userid, stationid, start, extent,
 
   flagstring = '&'.join(flag_list)
 
-  if extra_parameters:
-    extra_parameters_allowed = ['mlt', 'mag', 'geo', 'decl', 'sza', 'glat', 'glon']
+  if extra_parameters is not None and not isinstance(extra_parameters, (list, tuple)):
+    raise ValueError(f"extra_parameters must be a list, tuple, or None. Got: {extra_parameters}")
+
+  if extra_parameters is not None:
     for parameter in extra_parameters:
-      if parameter not in extra_parameters_allowed:
-        raise ValueError(f"Invalid extra parameter: {parameter}. Allowed parameters are: {extra_parameters_allowed}")
+      if parameter not in EXTRA_PARAMETERS:
+        raise ValueError(f"Invalid extra parameter: '{parameter}'. Allowed parameters are: {EXTRA_PARAMETERS}")
     flagstring += '&' + '&'.join(extra_parameters)
 
   url = "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&"
@@ -95,18 +100,21 @@ def data(userid, stationid, start, extent,
 
   if cache:
     _cache_write(stationid, delta, start, data_json, cache_dir)
-    data_json = _subset_json(data_json, start, requested_extent)
+    data_json = _subset_json(data_json, start, requested_extent, requested_extra_parameters)
 
   if format == 'json':
     return data_json, None
 
-  if format == 'list' or format == 'dataframe':
+  if format in ('list', 'dataframe', 'csv'):
     try:
       result = _reformat(data_json, format=format)
     except Exception as error:
-      logger.debug(f"Failed to _reformat data for station {stationid}: {error}")
-      return None, {'url': url, 'error': str(error)}
+      emsg = f"Failed to _reformat data for station {stationid}: {error}"
+      logger.debug(emsg)
+      return None, {'url': url, 'error': emsg}
     return result, None
+
+  return None, {'url': None, 'error': f'Unknown format: {format}'}
 
 
 def _get(url):
@@ -253,8 +261,8 @@ def _reformat(data_json, format='list'):
   return [header] + data_rows
 
 
-def _subset_json(data_json, start, extent):
-  """Return only records within [start, start+extent) based on tval (Unix seconds)."""
+def _subset_json(data_json, start, extent, extra_parameters):
+  """Return only records within [start, start+extent) and keep only requested extra_parameters."""
   from datetime import datetime, timezone
 
   if not data_json or extent is None:
@@ -274,7 +282,28 @@ def _subset_json(data_json, start, extent):
 
   start_ts = start_dt.timestamp()
   stop_ts = start_ts + extent
-  return [row for row in data_json if start_ts <= row['tval'] < stop_ts]
+
+  if extra_parameters is None or set(extra_parameters) == set(EXTRA_PARAMETERS):
+    return [row for row in data_json if start_ts <= row['tval'] < stop_ts]
+
+  # mlt brings mcolat along
+  requested = set(extra_parameters)
+  if 'mlt' in requested:
+    requested.add('mcolat')
+
+  # Always keep non-extra keys; add requested extra keys.
+  # Iterate row.items() so output key order matches the original row.
+  extra_keys = set(EXTRA_PARAMETERS + ['mcolat'])
+  result = []
+  for row in data_json:
+    if not start_ts <= row['tval']:
+      continue
+    if row['tval'] >= stop_ts:
+      break
+    non_extra = set(row.keys()) - extra_keys
+    keys_to_keep = non_extra | requested
+    result.append({k: v for k, v in row.items() if k in keys_to_keep})
+  return result
 
 
 def _cache_paths(stationid, delta, start, cache_dir):
@@ -318,22 +347,13 @@ def _cache_write(stationid, delta, start, data_json, cache_dir):
   if debug_response:
     logger.debug(f"Cached JSON: {cache_json_file}")
 
-  try:
-    df = _reformat(data_json, format='dataframe')
-    with cache_df_file.open('wb') as f:
-      pickle.dump(df, f)
-    if debug_response:
-      logger.debug(f"Cached dataframe: {cache_df_file}")
-  except Exception as error:
-    logger.debug(f"Failed to cache dataframe for station {stationid}: {error}")
-
 
 def parse_args():
   import argparse
 
   default_station = 'ABK'
-  default_start = '2001-01-01T00:00:00.000000Z'
-  default_stop  = '2001-01-01T00:00:01.000000Z'
+  default_start = '2001-01-01T00:00Z'
+  default_stop  = '2001-01-01T00:01Z'
   default_cache_dir = '.'
 
   parser = argparse.ArgumentParser(
@@ -381,7 +401,7 @@ def parse_args():
   parser.add_argument(
     '--format',
     default='json',
-    choices=['json', 'csv'],
+    choices=['json', 'csv', 'list', 'dataframe'],
     help='Output format. Default: json.',
   )
   parser.add_argument(
@@ -405,8 +425,30 @@ def parse_args():
     action='store_true',
     help='Enable debug logging.'
   )
+  parser.add_argument(
+    '--output-dir',
+    default=".",
+    help='Path to write output file. Ignored if --output-file is given. Default: current directory.'
+  )
+  parser.add_argument(
+    '--output-file',
+    default=None,
+    type=pathlib.Path,
+    help='Path to write output. If not given, writes to supermag-{station}-{start}-{stop}-{baseline}-{delta}.{format}'
+  )
+  parser.add_argument(
+    '--extra-parameters',
+    default=EXTRA_PARAMETERS,
+    help=f'Comma-separated list of extra parameters to include in output. Default: {",".join(EXTRA_PARAMETERS)}.'
+  )
 
   args = parser.parse_args()
+
+  if args.extra_parameters:
+    if args.extra_parameters == 'none':
+      args.extra_parameters = []
+    else:
+      args.extra_parameters = [param.strip() for param in args.extra_parameters]
 
   # Normalise times to HH:MMZ
   args.start = args.start[:16] + 'Z'
@@ -429,6 +471,8 @@ def parse_args():
 def main():
   from .util import set_logging_level
 
+  check_file = False # If true, read back output file to verify written correctly.
+
   args = parse_args()
 
   if args.debug:
@@ -443,19 +487,39 @@ def main():
     'format': args.format,
     'cache': args.cache,
     'ignore_cache': args.ignore_cache,
-    'cache_dir': args.cache_dir
+    'cache_dir': args.cache_dir,
+    'extra_parameters': args.extra_parameters
   }
   result, error = data(args.userid, args.station, args.start, args.extent, **kwargs)
 
   if error is not None:
     logger.error(f"Error: {error}")
   else:
+    ext = args.format
+    ext2 = ""
+    if args.format == 'dataframe' or args.format == 'list':
+      ext2 = '.pkl'
+    if args.output_file is not None:
+      output_file = args.output_file
+    else:
+      fname = f"supermag-{args.station}-{args.start}-{args.stop}-{args.baseline}-{args.delta}.{ext}{ext2}"
+      output_file = pathlib.Path(args.output_dir) / fname
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
     if args.format == 'json':
       import json
-      print(json.dumps(result, indent=2))
+      output_file.write_text(json.dumps(result, indent=2) + '\n')
     elif args.format == 'csv':
-      print(result)
+      output_file.write_text(result + '\n')
+    elif args.format == 'dataframe':
+      result.to_pickle(output_file)
+    elif args.format == 'list':
+      import pickle
+      with output_file.open('wb') as f:
+        pickle.dump(result, f)
 
+    logger.info(f"Wrote {output_file}")
 
 if __name__ == '__main__':
   main()
