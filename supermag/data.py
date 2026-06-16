@@ -70,8 +70,11 @@ def data(userid, stationid, start, extent,
   but the following request gives the same as delta=none.
   https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=median&baseline=none&mlt&decl&sza&glat&glon
 
-  Also, if 'Subtract median value' is checked, 'Subtract start value' is ignored.
-  To see this, search on 'median' at https://supermag.jhuapl.edu/mag/lib/js/mag.applet.js?l=a
+  Also, if 'Subtract median value' is checked (shows only when 'Do Not Remove
+  Any Baseline' is selected), 'Subtract start value' is ignored. To see this,
+  search on 'median' at https://supermag.jhuapl.edu/mag/lib/js/mag.applet.js?l=a
+  So if delta=median, is supported, will need to check that baseline is 'none'
+  and raise an error if not.
   """
 
   if cache_dir is None:
