@@ -1,3 +1,3 @@
-from .data import data
+from .data import data, indices
 
-__all__ = ['data']
+__all__ = ['data', 'indices']

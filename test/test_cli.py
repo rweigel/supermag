@@ -27,7 +27,7 @@ def test_default():
           '--ignore-cache'
          ]
   _run_test_command(cmd)
-  _check_output_file(output_file, 'json', 'json')
+  _check_output_file(output_file, format='json', ext='json', n_records=1)
   _remove(output_file)
 
 
@@ -53,7 +53,7 @@ def test_format():
           ]
 
     _run_test_command(cmd)
-    _check_output_file(output_file, format, ext)
+    _check_output_file(output_file, format=format, ext=ext, n_records=1)
     _remove(output_file)
 
 
