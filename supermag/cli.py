@@ -79,6 +79,12 @@ def parse_args():
     help=f'Base directory for cache storage. Default: {default_cache_dir}.'
   )
   parser.add_argument(
+    '--cafile',
+    default='none',
+    type=str,
+    help="CA bundle setting: 'default', 'none', or path to PEM file. Default: default."
+  )
+  parser.add_argument(
     '--debug',
     action='store_true',
     help='Enable debug logging.'
@@ -111,6 +117,12 @@ def parse_args():
 
   args.cache = not args.no_cache
 
+  if isinstance(args.cafile, str):
+    if args.cafile.lower() == 'none':
+      args.cafile = None
+    elif args.cafile.lower() == 'default':
+      args.cafile = 'default'
+
   return args
 
 
@@ -139,6 +151,7 @@ def main():
       'cache': args.cache,
       'ignore_cache': args.ignore_cache,
       'cache_dir': args.cache_dir,
+      'cafile': args.cafile,
     }
     result, error = indices(args.userid, args.start, args.extent, **kwargs)
   else:
@@ -149,6 +162,7 @@ def main():
       'cache': args.cache,
       'ignore_cache': args.ignore_cache,
       'cache_dir': args.cache_dir,
+      'cafile': args.cafile,
     }
     result, error = data(args.userid, args.dataset, args.start, args.extent, **kwargs)
 

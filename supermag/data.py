@@ -12,9 +12,9 @@ EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
 BASE_URL = "https://supermag.jhuapl.edu/services"
 
 
-def indices(userid, start, extent, format='json', cache=True, ignore_cache=False, cache_dir=None):
+def indices(userid, start, extent, format='json', cache=True, ignore_cache=False, cache_dir=None, cafile=None):
 
-  return data(userid, 'indices', start, extent, format=format, cache=cache, ignore_cache=ignore_cache, cache_dir=cache_dir)
+  return data(userid, 'indices', start, extent, format=format, cache=cache, ignore_cache=ignore_cache, cache_dir=cache_dir, cafile=cafile)
 
 
 def data(userid, stationid, start, extent,
@@ -24,7 +24,8 @@ def data(userid, stationid, start, extent,
           cadence='PT1M',
           cache=True,
           ignore_cache=False,
-          cache_dir=None):
+          cache_dir=None,
+          cafile=None):
 
   _locals = locals()
   logger.debug("data() called with arguments:")
@@ -96,7 +97,7 @@ def data(userid, stationid, start, extent,
     url = f"{BASE_URL}/data-api.php?python&nohead&"
     url += f"start={start}&extent={extent}&logon={userid}&station={stationid}&{options}"
 
-  data_json, error = _get_and_parse(url, stationid, format='json')
+  data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile)
   if error is not None:
     return None, error
 
@@ -111,27 +112,22 @@ def data(userid, stationid, start, extent,
   return _reformat(data_json, format=format), None
 
 
-def _get(url):
+def _get(url, cafile=None):
+  import os
   import urllib3
-  import importlib
-
-  certspec = importlib.util.find_spec("certifi")
-  cafile = None
-  if certspec is not None:
-    import certifi
+  import certifi
 
   logger.debug("Getting URL: %s", url)
-  try:
-    logger.debug("  Trying certifi.where().")
-    cafile = certifi.where()
-  except Exception:
-    logger.debug("  certifi.where() raised an exception.")
-    cafile = None
 
   pool_kwargs = {}
   if cafile is not None:
-    logger.debug(f"  Using CA certificates from certifi: {cafile}")
-    pool_kwargs['ca_certs'] = cafile
+    if os.path.isfile(cafile):
+      pool_kwargs['ca_certs'] = cafile
+    elif cafile.lower() == 'default':
+      pool_kwargs['ca_certs'] = certifi.where()
+    else:
+      raise ValueError(f"Invalid cafile value: {cafile}. Must be 'default', 'none', or path to PEM file.")
+    logger.debug(f"  Using CA certificates from: {pool_kwargs['ca_certs']}")
 
   try:
     logger.debug("  Getting response using urllib3.PoolManager().request('GET', url)")
@@ -150,9 +146,9 @@ def _get(url):
   return response
 
 
-def _get_and_parse(url, stationid, format='json'):
+def _get_and_parse(url, stationid, format='json', cafile=None):
   try:
-    response = _get(url)
+    response = _get(url, cafile=cafile)
     data_json, error = _parse_response(response, format='json')
     if error is not None:
       logger.debug(error)
