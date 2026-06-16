@@ -1,14 +1,6 @@
 
-import logging
-
-try:
-  from .util import configure_logging
-  logger = configure_logging(__name__, level=logging.INFO)
-except:
-  # If util cannot be imported (if this script copied locally), set up a 
-  # basic logger to avoid NameError.
-  logging.basicConfig(level=logging.INFO, format='%(name)s: %(message)s')
-  logger = logging.getLogger(__name__)
+from .util import configure_logging, check_userid
+logger = configure_logging(__name__)
 
 # If true, show response data in debug logs.
 debug_response = False
@@ -17,33 +9,19 @@ debug_response = False
 # Note: mlt => response includes mlt, and mcolat. All others are single.
 EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
 
+BASE_URL = "https://supermag.jhuapl.edu/services"
+
 
 def indices(userid, start, extent, format='json', cache=True, ignore_cache=False, cache_dir=None):
 
-  _check_userid(userid)
-
-  if isinstance(extent, str):
-    extent = _stop_to_extent(start, extent)
-
-  url = "https://supermag.jhuapl.edu/services/indices.php?python&nohead"
-  url += f"&start={start}&extent={extent}&logon={userid}"
-  url += "&indices=all&swi=all&imf=all"
-
-  data_json, error = _get_and_parse(url, 'indices', format='json')
-  if error is not None:
-    return None, {'url': url, 'error': str(error)}
-
-  try:
-    result = _reformat(data_json, format=format)
-  except Exception as error:
-    return None, {'url': url, 'error': str(error)}
-  return result, None
+  return data(userid, 'indices', start, extent, format=format, cache=cache, ignore_cache=ignore_cache, cache_dir=cache_dir)
 
 
 def data(userid, stationid, start, extent,
           baseline='yearly',
-          delta='default',
+          delta='none',
           format='json',
+          cadence='PT1M',
           cache=True,
           ignore_cache=False,
           cache_dir=None):
@@ -53,16 +31,23 @@ def data(userid, stationid, start, extent,
   for arg in _locals:
     logger.debug(f"  {arg}: {_locals[arg]}")
 
-  import pathlib
+  check_userid(userid)
 
   if format not in ['json', 'list', 'dataframe', 'csv']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'list', 'dataframe', 'csv'.")
+    raise ValueError(f"Invalid format: {format}. Must be one of: json, list, dataframe, csv.")
 
-  if baseline not in ['yearly', 'all', 'none']:
-    raise ValueError("Invalid baseline value. Must be one of: 'yearly', 'default', 'none'.")
+  if stationid == 'indices':
+    baseline = None
+    delta = None
+  else:
+    if baseline not in ['yearly', 'all', 'none']:
+      raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: yearly, default, none.")
 
-  if delta not in ['start', 'none']:
-    raise ValueError("Invalid delta value. Must be one of: 'start', 'none'.")
+    if delta not in ['start', 'none']:
+      raise ValueError(f"Invalid delta value: {delta}. Must be one of: start, none.")
+
+  if cadence != 'PT1M':
+    raise ValueError(f"Invalid cadence value: {cadence}. Only 'PT1M' (1 minute) is supported.")
 
   """
   delta=median not supported. It is an option in the table at
@@ -77,11 +62,6 @@ def data(userid, stationid, start, extent,
   and raise an error if not.
   """
 
-  if cache_dir is None:
-    cache_dir = pathlib.Path(__file__).resolve().parent.parent / 'data'
-  else:
-    cache_dir = pathlib.Path(cache_dir)
-
   if isinstance(extent, str):
     extent = _stop_to_extent(start, extent)
 
@@ -91,44 +71,44 @@ def data(userid, stationid, start, extent,
   # When caching, always fetch all extra parameters and a full day
   if cache:
     seconds_per_day = 60 * 60 * 24
-    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day  # round up to full day(s)
+    # round up to full day(s)
+    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
 
   # Try to load from cache
   if cache and not ignore_cache:
-    result, error = _cache_get(stationid, delta, start, extent, cache_dir, format, requested_extent)
+    result, error = _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=delta, baseline=baseline)
     if result is not None or error is not None:
       return result, error
 
 
-  # Call the SuperMAG API to get the data
-  options = []
-  options.append(f"delta={delta}")
-  options.append(f"baseline={baseline}")
-  options = '&'.join(options)
-  options += '&' + '&'.join(EXTRA_PARAMETERS)
+  if stationid == 'indices':
+    url = f"{BASE_URL}/indices.php?python&nohead"
+    url += f"&start={start}&extent={extent}&logon={userid}"
+    url += "&indices=all&swi=all&imf=all"
+  else:
+    # Call the SuperMAG API to get the data
+    options = []
+    options.append(f"delta={delta}")
+    options.append(f"baseline={baseline}")
+    options = '&'.join(options)
+    options += '&' + '&'.join(EXTRA_PARAMETERS)
 
-  url = "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&"
-  url += f"start={start}&extent={extent}&logon={userid}&station={stationid.upper()}&{options}"
+    url = f"{BASE_URL}/data-api.php?python&nohead&"
+    url += f"start={start}&extent={extent}&logon={userid}&station={stationid}&{options}"
 
   data_json, error = _get_and_parse(url, stationid, format='json')
   if error is not None:
-    return None, {'url': url, 'error': str(error)}
+    return None, error
 
    # Cache the full response before sub-setting, so we have the full data available in cache for future requests.
   if cache:
-    _cache_write(stationid, delta, start, data_json, cache_dir)
+    _cache_write(data_json, cache_dir, stationid, cadence, delta=delta, baseline=baseline)
     data_json = _subset(data_json, start, requested_extent)
 
   if format == 'json':
     return data_json, None
 
-  try:
-    result = _reformat(data_json, format=format)
-  except Exception as error:
-    emsg = f"Failed to reformat data for station {stationid}: {error}"
-    logger.debug(emsg)
-    return None, {'url': url, 'error': emsg}
-  return result, None
+  return _reformat(data_json, format=format), None
 
 
 def _get(url):
@@ -175,26 +155,24 @@ def _get_and_parse(url, stationid, format='json'):
     response = _get(url)
     data_json, error = _parse_response(response, format='json')
     if error is not None:
-      logger.debug(f"Failed to parse response for {stationid}: {error}")
-      return None, {'url': url, 'error': str(error)}
+      logger.debug(error)
+      return None, {'url': url, 'error': error}
+
     try:
       data_json = _reformat(data_json)
     except Exception as error:
-      logger.debug(f"Failed to reformat data for {stationid}: {error}")
-      return None, {'url': url, 'error': str(error)}
+      emsg = f"Failed to reformat data for {stationid}"
+      logger.debug(emsg)
+      error = Exception(f"{emsg}: {error}")
+      return None, {'url': url, 'error': error}
+
   except Exception as error:
-    logger.debug("data() failed for %s: %s", stationid, error)
-    return None, {'url': url, 'error': str(error)}
+    emsg = f"data() failed for {stationid}"
+    logger.debug(emsg)
+    error = Exception(f"{emsg}: {error}")
+    return None, {'url': url, 'error': error}
 
   return data_json, None
-
-
-def _check_userid(userid):
-  if not userid:
-    raise ValueError("SuperMAG user id is required")
-
-  if userid == 'USERID':
-    raise ValueError("Provide a valid SuperMAG user id instead of the placeholder 'USERID'")
 
 
 def _stop_to_extent(start, extent):
@@ -244,6 +222,10 @@ def _parse_response(response, format=None):
   finally:
     response.release_conn()
 
+  if longstring.startswith("ERROR"):
+    error = Exception(longstring)
+    return None, error
+
   if format is None or format == 'string':
     return longstring
 
@@ -255,7 +237,8 @@ def _parse_response(response, format=None):
     if debug_response:
       logger.debug(f"Parsed JSON data: {data_json}")
   except Exception as error:
-    return None, f"Error: '{error}' for response data: '{longstring}'"
+    error = Exception(f"json.loads() error '{error}' for response (first 80 chars): '{longstring[0:80]}'")
+    return None, error
 
   return data_json, None
 
@@ -350,25 +333,36 @@ def _subset(data, start, extent):
   return [row for row in data if start_ts <= row['tval'] < stop_ts]
 
 
-def _cache_get(stationid, delta, start, extent, cache_dir, format, requested_extent):
+def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=None, baseline=None):
 
   if format not in ['json', 'dataframe']:
     raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
 
   file_ext = 'json' if format == 'json' else 'dataframe'
-  cached = _cache_read(stationid, delta, start, extent, cache_dir, format=file_ext)
+  cached = _cache_read(cache_dir, stationid, start, extent, format=file_ext, cadence=cadence, delta=None, baseline=None)
   if cached is None:
     return None, None
 
   data = _subset(cached, start, requested_extent)
 
-  try:
-    return _reformat(data, format=format), None
-  except Exception as error:
-    return None, {'url': None, 'error': str(error)}
+  return _reformat(data, format=format), None
 
 
-def _cache_read(stationid, delta, start, extent, cache_dir, format='json'):
+def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
+  import pathlib
+
+  if cache_dir is None:
+    cache_dir = pathlib.Path(__file__).resolve().parent.parent / 'supermag-cache'
+  else:
+    cache_dir = pathlib.Path(cache_dir)
+
+  delta_str = str(delta) if delta is not None else 'none'
+  baseline_str = str(baseline) if baseline is not None else 'none'
+  cache_path = cache_dir / stationid / cadence / f"baseline-{baseline_str}" / f"delta-{delta_str}"
+  return cache_path
+
+
+def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1M', delta=None, baseline=None):
   """Return cached data for all day-chunk files spanning [start, start+extent). Returns None if any chunk is missing."""
   import pickle
   from datetime import datetime, timezone, timedelta
@@ -376,8 +370,7 @@ def _cache_read(stationid, delta, start, extent, cache_dir, format='json'):
   if format not in ['json', 'dataframe']:
     raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
 
-  delta_str = str(delta) if delta is not None else 'none'
-  base_dir = cache_dir / stationid.upper() / delta_str
+  cache_dir = _cache_path(cache_dir, stationid, cadence, delta=delta, baseline=baseline)
 
   # Determine which UTC dates are needed
   start_str = str(start).rstrip('Z').replace(' ', 'T')
@@ -396,7 +389,7 @@ def _cache_read(stationid, delta, start, extent, cache_dir, format='json'):
 
   chunks = []
   for date in dates:
-    cache_file = base_dir / f'{date}.{format}.pkl'
+    cache_file = cache_dir / f'{date}.{format}.pkl'
     if not cache_file.exists():
       logger.debug(f"Cache miss: {cache_file}")
       return None
@@ -415,7 +408,7 @@ def _cache_read(stationid, delta, start, extent, cache_dir, format='json'):
   return result
 
 
-def _cache_write(stationid, delta, start, data_json, cache_dir):
+def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=None):
   """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
   import pickle
   from datetime import datetime, timezone
@@ -429,22 +422,21 @@ def _cache_write(stationid, delta, start, data_json, cache_dir):
     date_str = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%d')
     days.setdefault(date_str, []).append(row)
 
-  delta_str = str(delta) if delta is not None else 'none'
-  base_dir = cache_dir / stationid.upper() / delta_str
-  base_dir.mkdir(parents=True, exist_ok=True)
+  cache_dir = _cache_path(cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+  cache_dir.mkdir(parents=True, exist_ok=True)
 
   for date_str, rows in days.items():
     # Write JSON chunk
     rows = _reformat(rows, format='json')
-    cache_json_file = base_dir / f'{date_str}.json.pkl'
+    cache_json_file = cache_dir / f'{date_str}.json.pkl'
     with cache_json_file.open('wb') as f:
       pickle.dump(rows, f)
     logger.debug(f"Wrote: {cache_json_file}")
 
-    # Write dataframe chunk (no extra timestamp columns — plain tval)
+    # Write dataframe chunk
     try:
       df = _reformat(rows, format='dataframe')
-      cache_df_file = base_dir / f'{date_str}.dataframe.pkl'
+      cache_df_file = cache_dir / f'{date_str}.dataframe.pkl'
       with cache_df_file.open('wb') as f:
         pickle.dump(df, f)
       logger.debug(f"Wrote: {cache_df_file}")
@@ -452,63 +444,6 @@ def _cache_write(stationid, delta, start, data_json, cache_dir):
       logger.debug(f"Failed to write dataframe cache for {date_str}: {error}")
 
 
-def main():
-  # Called when running `python -m supermag.data` or supermag-data from the command line.
-  # Parses command-line arguments, calls data(), and writes output to a file.
-  import pathlib
-  from .util import set_logging_level
-  from .cli import parse_args
-
-  args = parse_args()
-
-  if args.debug:
-    set_logging_level(logging.DEBUG, [__name__])
-
-  logger.debug("Parsed command-line arguments:")
-  for arg in vars(args):
-    logger.debug(f"  {arg}: {getattr(args, arg)}")
-
-  kwargs = {
-    'baseline': args.baseline,
-    'delta': args.delta,
-    'format': args.format,
-    'cache': args.cache,
-    'ignore_cache': args.ignore_cache,
-    'cache_dir': args.cache_dir,
-  }
-  result, error = data(args.userid, args.station, args.start, args.extent, **kwargs)
-
-  if error is not None:
-    logger.error(f"Error: {error}")
-  else:
-    ext = args.format
-    ext2 = ""
-    if args.format == 'dataframe' or args.format == 'list':
-      ext2 = '.pkl'
-    if args.output_file is not None:
-      output_file = args.output_file
-    else:
-      baseline_str = args.baseline if args.baseline is not None else 'none'
-      delta_str = args.delta if args.delta is not None else 'none'
-      fname = f"supermag-{args.station}-{args.start}-{args.stop}-baseline_{baseline_str}-delta_{delta_str}.{ext}{ext2}"
-      output_file = pathlib.Path(args.output_dir) / fname
-
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    if args.format == 'json':
-      import json
-      output_file.write_text(json.dumps(result, indent=2) + '\n')
-    elif args.format == 'csv':
-      output_file.write_text(result + '\n')
-    elif args.format == 'dataframe':
-      result.to_pickle(output_file)
-    elif args.format == 'list':
-      import pickle
-      with output_file.open('wb') as f:
-        pickle.dump(result, f)
-
-    logger.info(f"Wrote {output_file}")
-
-
 if __name__ == '__main__':
+  from .cli import main
   main()

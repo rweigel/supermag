@@ -5,7 +5,7 @@ Usage:
 """
 
 import logging
-from .util import _path_relative_to_cwd, configure_logging, set_logging_level
+from .util import path_relative_to_cwd, configure_logging, set_logging_level
 
 logger = configure_logging(__name__, level=logging.INFO)
 
@@ -208,7 +208,7 @@ def _write_locations(locations, output_file):
     json.dump(locations, stream, indent=2)
     stream.write('\n')
 
-  logger.info(f'Wrote {_path_relative_to_cwd(output_file)} with {len(locations)} station locations')
+  logger.info(f'Wrote {path_relative_to_cwd(output_file)} with {len(locations)} station locations')
 
   # Print missing locations to console
   missing_locations = [
@@ -243,13 +243,13 @@ def parse_args():
     '--inventory-file',
     default=inventory_file,
     type=Path,
-    help=f'Path to combined inventory.json file. Default: {_path_relative_to_cwd(inventory_file)}',
+    help=f'Path to combined inventory.json file. Default: {path_relative_to_cwd(inventory_file)}',
   )
   parser.add_argument(
     '--output-dir',
     default=output_dir,
     type=Path,
-    help=f'Path to write locations output file(s). Default: {_path_relative_to_cwd(output_dir)}',
+    help=f'Path to write locations output file(s). Default: {path_relative_to_cwd(output_dir)}',
   )
   parser.add_argument(
     '--station-id',

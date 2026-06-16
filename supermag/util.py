@@ -1,9 +1,21 @@
-import os
 import logging
-from pathlib import Path
 
 
 LOG_FORMAT = '%(name)s: %(message)s'
+
+
+def path_relative_to_cwd(path):
+  import os
+  from pathlib import Path
+  return Path(os.path.relpath(Path(path).resolve(), Path.cwd()))
+
+
+def check_userid(userid):
+  if not userid:
+    raise ValueError("SuperMAG user id is required")
+
+  if userid == 'USERID':
+    raise ValueError("Provide a valid SuperMAG user id instead of the placeholder 'USERID'")
 
 
 def configure_logging(name, level=logging.DEBUG, format_string=LOG_FORMAT):
@@ -20,7 +32,3 @@ def set_logging_level(level, logger_names=None):
 
   for logger_name in logger_names:
     logging.getLogger(logger_name).setLevel(level)
-
-
-def _path_relative_to_cwd(path):
-  return Path(os.path.relpath(Path(path).resolve(), Path.cwd()))

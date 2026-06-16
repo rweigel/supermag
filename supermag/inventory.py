@@ -15,7 +15,7 @@ Short tests:
 
 import logging
 
-from .util import _path_relative_to_cwd, configure_logging, set_logging_level
+from .util import path_relative_to_cwd, configure_logging, set_logging_level
 
 logger = configure_logging(__name__, level=logging.INFO)
 
@@ -165,7 +165,7 @@ def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, dela
 
     output_file = inventory_file_path(inventory_dir, current)
     if output_file.exists() and not update:
-      logger.info(f'  Found cache: {_path_relative_to_cwd(output_file)}')
+      logger.info(f'  Found cache: {path_relative_to_cwd(output_file)}')
       with output_file.open() as stream:
         import json
         payload = json.load(stream)
@@ -179,7 +179,7 @@ def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, dela
     requested += 1
     stations = payload.get('stations', []) if isinstance(payload, dict) else []
     output_file = write_inventory_file(inventory_dir, current, payload)
-    logger.info(f'  {_path_relative_to_cwd(output_file)}: {len(stations)} stations')
+    logger.info(f'  {path_relative_to_cwd(output_file)}: {len(stations)} stations')
     inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
 
   return inventory_data
@@ -238,7 +238,7 @@ def _write_files(inventory, output_dir, start, stop, station_id=None, partial_ou
 
   inventory_file.parent.mkdir(parents=True, exist_ok=True)
 
-  logger.info(f'Writing {_path_relative_to_cwd(inventory_file)} with {len(inventory)} stations')
+  logger.info(f'Writing {path_relative_to_cwd(inventory_file)} with {len(inventory)} stations')
   with inventory_file.open('w') as stream:
     json.dump(inventory, stream, indent=2)
     stream.write('\n')
@@ -246,7 +246,7 @@ def _write_files(inventory, output_dir, start, stop, station_id=None, partial_ou
   if archive_file is None:
     return
 
-  logger.info(f'Writing {_path_relative_to_cwd(archive_file)} with {len(inventory)} stations')
+  logger.info(f'Writing {path_relative_to_cwd(archive_file)} with {len(inventory)} stations')
   with gzip.open(archive_file, 'wt') as stream:
     json.dump(inventory, stream, indent=2)
     stream.write('\n')
@@ -314,7 +314,7 @@ def _args():
     '--output-dir',
     default=output_dir,
     type=Path,
-    help=f'Base directory for outputs. Default: {_path_relative_to_cwd(output_dir)}',
+    help=f'Base directory for outputs. Default: {path_relative_to_cwd(output_dir)}',
   )
   parser.add_argument(
     '--station-id',

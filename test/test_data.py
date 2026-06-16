@@ -43,6 +43,7 @@ def test_format():
 
   check_equivalent(all_formats)
 
+
 def test_options():
 
   tests = [
@@ -147,12 +148,11 @@ def test_one_and_half_day_request():
 
 
 if __name__ == '__main__':
-  test_options()
-  exit()
   test_default()
   test_start()
   test_extent_is_stop()
   test_format()
+  test_options()
   test_full_day_request()
   test_half_day_request()
   test_one_and_half_day_request()

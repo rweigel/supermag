@@ -1,3 +1,8 @@
+import logging
+
+from .util import configure_logging
+logger = configure_logging(__name__, level=logging.INFO)
+
 def parse_args():
   import pathlib
   import argparse
@@ -20,9 +25,9 @@ def parse_args():
     ),
   )
   parser.add_argument(
-    '--station',
+    '--dataset',
     default=default_station,
-    help=f'SuperMAG station ID. Default: {default_station}.',
+    help=f'"indices" or magnetometer IAGA ID (e.g., BOU). Default: {default_station}.',
   )
   parser.add_argument(
     '--userid',
@@ -108,3 +113,76 @@ def parse_args():
 
   return args
 
+
+def main():
+  # Called when running `python -m supermag.data` or supermag-data from the command line.
+  # Parses command-line arguments, calls data() or indices(), and writes output to a file.
+  import pathlib
+  from .util import set_logging_level
+  from .cli import parse_args
+
+  from .data import data
+  from .data import indices
+
+  args = parse_args()
+
+  if args.debug:
+    set_logging_level(logging.DEBUG, [__name__])
+
+  logger.debug("Parsed command-line arguments:")
+  for arg in vars(args):
+    logger.debug(f"  {arg}: {getattr(args, arg)}")
+
+  if args.dataset.lower() == 'indices':
+    kwargs = {
+      'format': args.format,
+      'cache': args.cache,
+      'ignore_cache': args.ignore_cache,
+      'cache_dir': args.cache_dir,
+    }
+    result, error = indices(args.userid, args.start, args.extent, **kwargs)
+  else:
+    kwargs = {
+      'baseline': args.baseline,
+      'delta': args.delta,
+      'format': args.format,
+      'cache': args.cache,
+      'ignore_cache': args.ignore_cache,
+      'cache_dir': args.cache_dir,
+    }
+    result, error = data(args.userid, args.dataset, args.start, args.extent, **kwargs)
+
+  if error is not None:
+    logger.error(f"Error getting: {error['url']}")
+    logger.error(f"Error message: {error['error']}")
+  else:
+    ext = args.format
+    ext2 = ""
+    if args.format == 'dataframe' or args.format == 'list':
+      ext2 = '.pkl'
+    if args.output_file is not None:
+      output_file = args.output_file
+    else:
+      if args.dataset.lower() == 'indices':
+        fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-indices.{ext}{ext2}"
+      else:
+        baseline_str = args.baseline if args.baseline is not None else 'none'
+        delta_str = args.delta if args.delta is not None else 'none'
+        fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-baseline_{baseline_str}-delta_{delta_str}.{ext}{ext2}"
+      output_file = pathlib.Path(args.output_dir) / fname
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.format == 'json':
+      import json
+      output_file.write_text(json.dumps(result, indent=2) + '\n')
+    elif args.format == 'csv':
+      output_file.write_text(result + '\n')
+    elif args.format == 'dataframe':
+      result.to_pickle(output_file)
+    elif args.format == 'list':
+      import pickle
+      with output_file.open('wb') as f:
+        pickle.dump(result, f)
+
+    logger.info(f"Wrote {output_file}")
