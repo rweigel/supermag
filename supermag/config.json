@@ -1,0 +1,14 @@
+{
+  "inventory": {
+    "delay": 0.0,
+    "timeout": 5,
+    "base_url": "https://supermag.jhuapl.edu/lib/services/inventory.php",
+    "output_dir": "supermag-cache/inventory"
+  },
+  "data": {
+    "_comment": "We always request all extra parameters. Note: mlt => response includes mlt, and mcolat. All others are single.",
+    "extra_parameters": ["mlt", "decl", "sza", "glat", "glon"],
+    "base_url_indices": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
+    "base_url_data": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead"
+  }
+}

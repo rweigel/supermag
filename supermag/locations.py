@@ -7,7 +7,7 @@ Usage:
 import logging
 from .util import path_relative_to_cwd, configure_logging, set_logging_level
 
-logger = configure_logging(__name__, level=logging.INFO)
+logger = configure_logging(__name__)
 
 
 def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, write_output=True, output_file=None):

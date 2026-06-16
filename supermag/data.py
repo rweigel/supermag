@@ -1,14 +1,11 @@
-from .util import configure_logging, check_userid
+from .util import configure_logging
 logger = configure_logging(__name__)
+
+from .config import config
+CONFIG = config('data')
 
 # If true, show response data in debug logs.
 debug_response = True
-
-# We always request all extra parameters.
-# Note: mlt => response includes mlt, and mcolat. All others are single.
-EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
-
-BASE_URL = "https://supermag.jhuapl.edu/services"
 
 
 def indices(userid, start, extent,
@@ -16,14 +13,16 @@ def indices(userid, start, extent,
             cache=True,
             ignore_cache=False,
             cache_dir=None,
-            cafile=None):
+            cafile=None,
+            timeout=30):
 
   return data(userid, 'indices', start, extent,
               format=format,
               cache=cache,
               ignore_cache=ignore_cache,
               cache_dir=cache_dir,
-              cafile=cafile)
+              cafile=cafile,
+              timeout=timeout)
 
 
 def data(userid, stationid, start, extent,
@@ -34,13 +33,15 @@ def data(userid, stationid, start, extent,
           cache=True,
           ignore_cache=False,
           cache_dir=None,
-          cafile=None):
+          cafile=None,
+          timeout=30):
 
   _locals = locals()
   logger.debug("data() called with arguments:")
   for arg in _locals:
     logger.debug(f"  {arg}: {_locals[arg]}")
 
+  from .util import check_userid
   check_userid(userid)
 
   if format not in ['json', 'list', 'dataframe', 'csv']:
@@ -91,22 +92,22 @@ def data(userid, stationid, start, extent,
       return result, error
 
 
+  common_params = f"start={start}&extent={extent}&logon={userid}"
   if stationid == 'indices':
-    url = f"{BASE_URL}/indices.php?python&nohead"
-    url += f"&start={start}&extent={extent}&logon={userid}"
-    url += "&indices=all&swi=all&imf=all"
+    url = CONFIG['base_url_indices']
+    url += f"&{common_params}&indices=all&swi=all&imf=all"
   else:
     # Call the SuperMAG API to get the data
     options = []
     options.append(f"delta={delta}")
     options.append(f"baseline={baseline}")
     options = '&'.join(options)
-    options += '&' + '&'.join(EXTRA_PARAMETERS)
+    options += '&' + '&'.join(CONFIG['extra_parameters'])
 
-    url = f"{BASE_URL}/data-api.php?python&nohead&"
-    url += f"start={start}&extent={extent}&logon={userid}&station={stationid}&{options}"
+    url = CONFIG['base_url_data']
+    url += f"&{common_params}&station={stationid}&{options}"
 
-  data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile)
+  data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile, timeout=timeout)
   if error is not None:
     return None, error
 
@@ -121,44 +122,10 @@ def data(userid, stationid, start, extent,
   return _reformat(data_json, format=format), None
 
 
-def _get(url, cafile=None):
-  import os
-  import urllib3
-  import certifi
-
-  logger.debug("Getting URL: %s", url)
-
-  pool_kwargs = {}
-  if cafile is not None:
-    if os.path.isfile(cafile):
-      pool_kwargs['ca_certs'] = cafile
-    elif cafile.lower() == 'default':
-      pool_kwargs['ca_certs'] = certifi.where()
-    else:
-      raise ValueError(f"Invalid cafile value: {cafile}. Must be 'default', 'none', or path to PEM file.")
-    logger.debug(f"  Using CA certificates from: {pool_kwargs['ca_certs']}")
-
+def _get_and_parse(url, stationid, format='json', cafile=None, timeout=30):
+  from .util import get
   try:
-    logger.debug("  Getting response using urllib3.PoolManager().request('GET', url)")
-    http = urllib3.PoolManager(**pool_kwargs)
-    response = http.request('GET', url)
-  except Exception as error:
-    logger.debug(f"  Failed: {error}")
-    raise
-
-  if response.status >= 400:
-    response.release_conn()
-    raise urllib3.exceptions.HTTPError(f"HTTP {response.status} for {url}")
-
-  logger.debug("Got URL: %s", url)
-
-  return response
-
-
-def _get_and_parse(url, stationid, format='json', cafile=None):
-  try:
-    response = _get(url, cafile=cafile)
-    data_json, error = _parse_response(response, format='json')
+    data_json, error = get(url, cafile=cafile, format='json', timeout=timeout)
     if error is not None:
       logger.debug(error)
       return None, {'url': url, 'error': error}
@@ -208,43 +175,6 @@ def _parse_timestamp(timestamp):
     except ValueError:
       continue
   raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
-
-
-def _parse_response(response, format=None):
-  import re
-  import json
-
-  if format not in [None, 'string', 'json']:
-    raise ValueError("Invalid format. Must be one of: None, 'string', 'json'.")
-
-  try:
-    longstring = response.data.decode('utf-8')
-    if debug_response:
-      logger.debug(f"Raw response string (first 80 chars): {longstring[0:80]}")
-    # JSON does not allow NaN
-    longstring = re.sub(r'\b(?:NaN|nan|Infinity|inf|-Infinity|-inf)\b', 'null', longstring, flags=re.IGNORECASE)
-  except Exception as error:
-    return None, f"Error: '{error}' for response data: '{longstring}'"
-  finally:
-    response.release_conn()
-
-  if longstring.startswith("ERROR"):
-    error = Exception(longstring)
-    return None, error
-
-  if format is None or format == 'string':
-    return longstring
-
-  if len(longstring) == 0:
-    return {}, None
-
-  try:
-    data_json = json.loads(longstring)
-  except Exception as error:
-    error = Exception(f"json.loads() error '{error}' for response (first 80 chars): '{longstring[0:80]}'")
-    return None, error
-
-  return data_json, None
 
 
 def _reformat(data_json, format='json'):
@@ -335,15 +265,19 @@ def _subset(data, start, extent):
 
 def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=None, baseline=None):
 
-  if format not in ['json', 'dataframe']:
-    raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
+  if format not in ['json', 'dataframe', 'csv', 'list']:
+    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'list'.")
 
-  file_ext = 'json' if format == 'json' else 'dataframe'
+  # csv/list are generated from JSON records.
+  file_ext = 'dataframe' if format == 'dataframe' else 'json'
   cached = _cache_read(cache_dir, stationid, start, extent, format=file_ext, cadence=cadence, delta=None, baseline=None)
   if cached is None:
     return None, None
 
   data = _subset(cached, start, requested_extent)
+
+  if format == 'dataframe':
+    return data, None
 
   return _reformat(data, format=format), None
 
@@ -356,9 +290,13 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
   else:
     cache_dir = pathlib.Path(cache_dir)
 
+  if stationid == 'indices':
+    sub_dir = pathlib.Path(f'indices/{cadence}')
+  else:
+    sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}")
   delta_str = str(delta) if delta is not None else 'none'
   baseline_str = str(baseline) if baseline is not None else 'none'
-  cache_path = cache_dir / stationid / cadence / f"baseline-{baseline_str}" / f"delta-{delta_str}"
+  cache_path = cache_dir / sub_dir / f"baseline-{baseline_str}" / f"delta-{delta_str}"
   return cache_path
 
 
@@ -445,5 +383,5 @@ def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=
 
 
 if __name__ == '__main__':
-  from .cli import main
-  main()
+  from .cli import main_data
+  main_data()

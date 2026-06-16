@@ -13,22 +13,21 @@ Short tests:
   supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory
 """
 
-import logging
+from .util import configure_logging
+logger = configure_logging(__name__)
 
-from .util import path_relative_to_cwd, configure_logging, set_logging_level
-
-logger = configure_logging(__name__, level=logging.INFO)
-
-BASE_URL = "https://supermag.jhuapl.edu/lib/services/inventory.php"
+from .config import config
+CONFIG = config('inventory')
 
 
-def create_combined_inventory(start, stop, output_dir=".",
-                              update_inventory=False,
-                              update_locations=False,
-                              station_id=None,
-                              partial_output=False,
-                              timeout=5,
-                              delay=0.0):
+def inventory(start, stop,
+              output_dir=CONFIG['output_dir'],
+              update_inventory=False,
+              update_locations=False,
+              station_id=None,
+              partial_inventory=False,
+              timeout=CONFIG['timeout'],
+              delay=CONFIG['delay']):
 
   kwargs = {
     'output_dir': output_dir,
@@ -90,7 +89,7 @@ def create_combined_inventory(start, stop, output_dir=".",
     'start': start,
     'stop': stop,
     'station_id': requested_station_id,
-    'partial_output': partial_output,
+    'partial_inventory': partial_inventory,
     'update': update_locations
   }
   geo_locations = _get_locations(inventory, output_dir, **kwargs)
@@ -124,16 +123,17 @@ def create_combined_inventory(start, stop, output_dir=".",
     'start': start,
     'stop': stop,
     'station_id': requested_station_id,
-    'partial_output': partial_output
+    'partial_inventory': partial_inventory
   }
   _write_files(inventory, output_dir, **kwargs)
 
   return inventory
 
 
-def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, delay=5):
+def get_inventories(start, stop, output_dir=CONFIG['output_dir'], update=False, timeout=CONFIG['timeout'], delay=CONFIG['delay']):
 
   import time
+  from .util import path_relative_to_cwd
 
   def parse_date(value):
     import datetime as dt
@@ -154,23 +154,26 @@ def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, dela
   if stop < start:
     raise ValueError('stop must be on or after start')
 
-  inventory_dir = output_dir / "inventory" / "daily"
+  inventory_dir = output_dir / "daily"
 
   inventory_data = {}
   requested = 0
   for current in _date_range(start, stop):
 
     file_date = current.strftime('%Y-%m-%d')
-    logger.info("Getting inventory for {}".format(file_date))
+    logger.info(f"Getting inventory for {file_date}")
 
     output_file = inventory_file_path(inventory_dir, current)
-    if output_file.exists() and not update:
-      logger.info(f'  Found cache: {path_relative_to_cwd(output_file)}')
-      with output_file.open() as stream:
-        import json
-        payload = json.load(stream)
-      inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
-      continue
+    if output_file.exists():
+      if not update:
+        logger.info(f'  Found cache: {path_relative_to_cwd(output_file)}')
+        with output_file.open() as stream:
+          import json
+          payload = json.load(stream)
+        inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
+        continue
+      else:
+        logger.info(f'  Updating existing: {path_relative_to_cwd(output_file)}')
 
     if requested > 0 and delay > 0:
       time.sleep(delay)
@@ -185,47 +188,53 @@ def get_inventories(start, stop, output_dir=".", update=False, timeout=0.0, dela
   return inventory_data
 
 
-def _get_locations(entry, output_dir, start, stop, station_id=None, partial_output=False, update=False):
+def _get_locations(entry, output_dir, start, stop, station_id=None, partial_inventory=False, update=False):
   from .locations import fetch_locations
 
   output_file = output_dir / 'locations.json'
   if station_id is not None:
     output_file = output_dir / 'partial' / f'locations-{station_id}.json'
-  elif partial_output:
+  elif partial_inventory:
     output_file = output_dir / 'partial' / f'locations-{start}-{stop}.json'
 
   return fetch_locations(entry, output_dir, update=update, output_file=output_file)
 
 
-def _get_inventory(start, timeout=5):
-  import json
-  from urllib.request import urlopen
+def _get_inventory(start, timeout=CONFIG['timeout']):
 
-  def inventory_url(start):
-    from urllib.parse import urlencode
-    query = urlencode({
+  from urllib.parse import urlencode
+  from .util import get
+
+  query = urlencode({
       'service': 'inventory',
       'start': start.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
       'interval': 1440,
       'fidelity': '60s',
     })
-    return f'{BASE_URL}?{query}'
+  url = f'{CONFIG['base_url']}?{query}'
 
-  logger.debug(f"  Fetching {inventory_url(start)}")
-  with urlopen(inventory_url(start), timeout=timeout) as response:
-    return json.load(response)
+  logger.debug(f"  Fetching {url}")
+  response, error = get(url, timeout=timeout)
+
+  if error is not None:
+    logger.error(f"  Error fetching inventory for {start}: {error}")
+    raise error
+
+  return response
 
 
-def _write_files(inventory, output_dir, start, stop, station_id=None, partial_output=False):
+def _write_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
 
   import json
   import gzip
   import datetime as dt
 
+  from .util import path_relative_to_cwd
+
   output_dir.mkdir(parents=True, exist_ok=True)
   timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
   if station_id is None:
-    if partial_output:
+    if partial_inventory:
       inventory_file = output_dir / 'partial' / f'inventory-{start}-{stop}.json'
       archive_file = None
     else:
@@ -272,107 +281,6 @@ def _date_range(start, stop, format='datetime'):
   return dates
 
 
-def _args():
-  import argparse
-  import sys
-  import datetime as dt
-  from pathlib import Path
-
-  default_start = '1970-01-01'
-  tomorrow = dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
-  default_stop  = (tomorrow).isoformat()
-  default_timeout = 5
-  default_request_delay = 0.0
-
-  epilog =  'Examples:\n'
-  epilog += '  supermag-inventory\n'
-  epilog += '  supermag-inventory --update-inventory\n'
-  epilog += '  supermag-inventory --update-locations\n'
-  epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations\n'
-
-  description = 'Fetch daily SuperMAG inventories and create inventory.json file with list of avaialble dates for each station.'
-  description += '\n\nIf --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial\n'
-
-  parser = argparse.ArgumentParser(
-    description=description,
-    epilog=epilog,
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-  )
-
-  output_dir = Path(__file__).resolve().parent.parent / 'data'
-  parser.add_argument(
-    '--start',
-    default=default_start,
-    help=f'First UTC day to fetch, in YYYY-MM-DD format. Default: {default_start}',
-  )
-  parser.add_argument(
-    '--stop',
-    default=default_stop,
-    help=f'Last UTC day to fetch, in YYYY-MM-DD format. Default: {default_stop}',
-  )
-  parser.add_argument(
-    '--output-dir',
-    default=output_dir,
-    type=Path,
-    help=f'Base directory for outputs. Default: {path_relative_to_cwd(output_dir)}',
-  )
-  parser.add_argument(
-    '--station-id',
-    default=None,
-    help='Only include the given station ID in the combined inventory output',
-  )
-  parser.add_argument(
-    '--timeout',
-    default=default_timeout,
-    type=int,
-    help=f'HTTP timeout in seconds for each fetch. Default: {default_timeout}',
-  )
-  parser.add_argument(
-    '--update-inventory',
-    action='store_true',
-    help='Refetch and overwrite existing daily inventory files.',
-  )
-  parser.add_argument(
-    '--update-locations',
-    action='store_true',
-    help='Refetch station locations even when cached locations already exist.',
-  )
-  parser.add_argument(
-    '--delay',
-    default=default_request_delay,
-    type=float,
-    help=f'Delay in seconds between actual HTTP requests. Default: {default_request_delay}',
-  )
-  parser.add_argument(
-    '--debug',
-    action='store_true',
-    help='Enable debug logging.',
-  )
-  args = parser.parse_args()
-  args.partial_output = '--start' in sys.argv[1:] or '--stop' in sys.argv[1:]
-  return args
-
-
-def main():
-  args = _args()
-
-  if args.debug:
-    from supermag import data as _data_module, locations as _loc_module
-    set_logging_level(logging.DEBUG, [__name__, _loc_module.__name__, _data_module.__name__])
-    logger.debug('Debug logging enabled.')
-
-  kwargs = {
-    'output_dir': args.output_dir,
-    'update_inventory': args.update_inventory,
-    'update_locations': args.update_locations,
-    'station_id': args.station_id,
-    'partial_output': args.partial_output,
-    'timeout': args.timeout,
-    'delay': args.delay,
-  }
-
-  create_combined_inventory(args.start, args.stop, **kwargs)
-
-
 if __name__ == '__main__':
-  main()
+  from .cli import main_inventory
+  main_inventory()
