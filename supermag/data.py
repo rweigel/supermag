@@ -1,9 +1,8 @@
-
 from .util import configure_logging, check_userid
 logger = configure_logging(__name__)
 
 # If true, show response data in debug logs.
-debug_response = False
+debug_response = True
 
 # We always request all extra parameters.
 # Note: mlt => response includes mlt, and mcolat. All others are single.
@@ -12,9 +11,19 @@ EXTRA_PARAMETERS = ['mlt', 'decl', 'sza', 'glat', 'glon']
 BASE_URL = "https://supermag.jhuapl.edu/services"
 
 
-def indices(userid, start, extent, format='json', cache=True, ignore_cache=False, cache_dir=None, cafile=None):
+def indices(userid, start, extent,
+            format='json',
+            cache=True,
+            ignore_cache=False,
+            cache_dir=None,
+            cafile=None):
 
-  return data(userid, 'indices', start, extent, format=format, cache=cache, ignore_cache=ignore_cache, cache_dir=cache_dir, cafile=cafile)
+  return data(userid, 'indices', start, extent,
+              format=format,
+              cache=cache,
+              ignore_cache=ignore_cache,
+              cache_dir=cache_dir,
+              cafile=cafile)
 
 
 def data(userid, stationid, start, extent,
@@ -154,6 +163,9 @@ def _get_and_parse(url, stationid, format='json', cafile=None):
       logger.debug(error)
       return None, {'url': url, 'error': error}
 
+    if debug_response:
+      logger.debug(f"Raw response keys: {list(data_json[0].keys()) if data_json else 'no data'}")
+
     try:
       data_json = _reformat(data_json)
     except Exception as error:
@@ -208,11 +220,9 @@ def _parse_response(response, format=None):
   try:
     longstring = response.data.decode('utf-8')
     if debug_response:
-      logger.debug(f"Raw response string: {longstring}")
+      logger.debug(f"Raw response string (first 80 chars): {longstring[0:80]}")
     # JSON does not allow NaN
     longstring = re.sub(r'\b(?:NaN|nan|Infinity|inf|-Infinity|-inf)\b', 'null', longstring, flags=re.IGNORECASE)
-    if debug_response:
-      logger.debug(f"Raw response string after re.sub(): {longstring}")
   except Exception as error:
     return None, f"Error: '{error}' for response data: '{longstring}'"
   finally:
@@ -230,8 +240,6 @@ def _parse_response(response, format=None):
 
   try:
     data_json = json.loads(longstring)
-    if debug_response:
-      logger.debug(f"Parsed JSON data: {data_json}")
   except Exception as error:
     error = Exception(f"json.loads() error '{error}' for response (first 80 chars): '{longstring[0:80]}'")
     return None, error
@@ -265,8 +273,6 @@ def _reformat(data_json, format='json'):
         header.append(f"{key}_{subkey}")
     else:
       header.append(key)
-  if debug_response:
-    logger.debug(f"Header: {header}")
 
   data_rows = []
   for entry in data_json:
@@ -278,8 +284,6 @@ def _reformat(data_json, format='json'):
       else:
         row.append(entry[key])
     data_rows.append(row)
-  if debug_response:
-    logger.debug(f"Data: {data_rows}")
 
   if format == 'list':
     return [header] + data_rows
