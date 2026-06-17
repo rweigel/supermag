@@ -1,7 +1,6 @@
 import logging
 
-from .util import configure_logging
-logger = configure_logging()
+from .util import logger, check_userid, set_logging_level
 
 from .config import config
 CONFIG = config()
@@ -110,10 +109,8 @@ def parse_data_args():
     type=pathlib.Path,
     help='Path to write output. If not given, writes to supermag-{station}-{start}-{stop}-{baseline}-{delta}.{format}'
   )
-  args = parser.parse_args()
 
   args = parser.parse_args()
-  from .util import check_userid
 
   check_userid(args.userid)
 
@@ -168,6 +165,11 @@ def parse_inventory_args():
   )
 
   parser.add_argument(
+    '--userid',
+    required=True,
+    help='SuperMAG user ID (required).',
+  )
+  parser.add_argument(
     '--start',
     default=default_start,
     help=f'First UTC day to fetch, in YYYY-MM-DD format. Default: {default_start}',
@@ -215,8 +217,13 @@ def parse_inventory_args():
     action='store_true',
     help='Enable debug logging.',
   )
+
   args = parser.parse_args()
+
+  check_userid(args.userid)
+
   args.partial_inventory = '--start' in sys.argv[1:] or '--stop' in sys.argv[1:]
+
   return args
 
 
@@ -266,7 +273,6 @@ def parse_location_args():
   )
 
   args = parser.parse_args()
-  from .util import check_userid
 
   check_userid(args.userid)
 
@@ -277,7 +283,6 @@ def main_data():
   # Called when running `python -m supermag.data` or supermag-data from the command line.
   # Parses command-line arguments, calls data() or indices(), and writes output to a file.
   import pathlib
-  from .util import set_logging_level
 
   from .data import data
   from .data import indices
@@ -285,7 +290,7 @@ def main_data():
   args = parse_data_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG)
+    set_logging_level("DEBUG")
 
   logger.debug("Parsed command-line arguments:")
   for arg in vars(args):
@@ -351,12 +356,10 @@ def main_data():
 
 
 def main_inventory():
-  from .util import set_logging_level
-
   args = parse_inventory_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG)
+    set_logging_level("DEBUG")
 
   kwargs = {
     'output_dir': args.output_dir,
@@ -369,16 +372,14 @@ def main_inventory():
   }
 
   from .inventory import inventory
-  inventory(args.start, args.stop, **kwargs)
+  inventory(args.userid, args.start, args.stop, **kwargs)
 
 
 def main_locations():
-  from .util import set_logging_level
-
   args = parse_location_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG)
+    set_logging_level("DEBUG")
 
   kwargs = {
     'output_dir': args.output_dir,

@@ -4,12 +4,10 @@ Usage:
   supermag-locations
 """
 
-from .util import path_relative_to_cwd, configure_logging
+from .util import path_relative_to_cwd, logger
 from .config import config
 
-logger = configure_logging()
 CONFIG = config()
-
 
 def locations(userid,
               output_dir=CONFIG['common']['output_dir'],
@@ -19,36 +17,37 @@ def locations(userid,
   locations_file = output_dir / 'inventory' / 'locations.json'
 
   # Read existing locations from file if it exists
-  locations = _read_locations(locations_file)
+  locations_existing = _read_locations(locations_file)
 
   inventory = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory, output_dir, locations, update)
+  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update)
 
   # Merge new locations with existing locations
   if station_id is None:
     logger.debug("Merging existing locations with possibly updated locations.")
   else:
     logger.debug(f"Replacing existing location for {station_id} with possibly updated location.")
-  locations.update(locations_new)
+  locations_existing.update(locations_new)
 
   # Print missing locations to console
   missing_locations = [
-    station_id for station_id, loc in locations.items()
+    sid for sid, loc in locations_existing.items()
     if not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {}))
   ]
   if missing_locations:
     logger.error(f'Missing locations for {len(missing_locations)} stations:')
-    for station_id in missing_locations:
-      logger.error(f'  Station ID: {station_id}')
+    for sid in missing_locations:
+      logger.error(f'  Station ID: {sid}')
 
   # Write updated locations to file
-  _write_locations(locations, locations_file)
+  _write_locations(locations_existing, locations_file)
 
   if station_id is None:
-    return locations
+    return locations_existing
   else:
-    return locations.get(station_id, None)
+    return {station_id: locations_existing.get(station_id, None)}
+
 
 def _fetch_locations(userid,
                     inventory,
@@ -77,6 +76,9 @@ def _fetch_locations(userid,
         logger.debug(f"{station_id} already has location, skipping fetch because update=False.")
         _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
         locations[station_id] = existing_location
+        # The following is not needed in general, but is here in case the location
+        # match logic is changed in the future.
+        locations[station_id]['geo_location_changed'] = _locations_match(location_start, location_stop)
         continue
 
     location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
@@ -100,11 +102,7 @@ def _fetch_locations(userid,
         locations[station_id] = existing_location
       else:
         logger.debug(f"{station_id}, and no existing location found. Adding empty location.")
-        locations[station_id] = {
-          'geo_location_changed': None,
-          'start': _location_record('', None, error_start),
-          'stop': _location_record('', None, error_stop)
-        }
+        locations[station_id] = None
 
   return locations
 
@@ -179,10 +177,14 @@ def _locations_match(start_location, stop_location):
 
 def _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate):
 
-  start_msg = f"  Start location on {start_isodate}: {location_start}"
-  stop_msg =  f"  Stop location on {stop_isodate}:  {location_stop}"
-  if not _locations_match(location_start, location_stop):
-    logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
+  start_msg = f"  Start {start_isodate}: {location_start}"
+  stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
+  match = _locations_match(location_start, location_stop)
+  if not match:
+    if match is False:
+      logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
+    if match is None:
+      logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
     logger.warning(f"  {start_msg}")
     logger.warning(f"  {stop_msg}")
   else:

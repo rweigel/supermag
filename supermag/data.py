@@ -1,5 +1,4 @@
-from .util import configure_logging
-logger = configure_logging()
+from .util import logger
 
 from .config import config
 CONFIG = config()

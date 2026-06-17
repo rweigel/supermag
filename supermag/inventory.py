@@ -13,14 +13,13 @@ Short tests:
   supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory
 """
 
-from .util import configure_logging
-logger = configure_logging()
+from .util import logger
 
 from .config import config
 CONFIG = config()
 
 
-def inventory(start, stop,
+def inventory(userid, start, stop,
               output_dir=CONFIG['common']['output_dir'],
               update_inventory=False,
               update_locations=False,
@@ -37,27 +36,19 @@ def inventory(start, stop,
   }
   inventories = get_inventories(start, stop, **kwargs)
 
-  requested_station_id = station_id # Save original for later
-
   station_availability = {}
-  """
-  station_availability = {
-    station_id1: [available_date1, available_date2, ...],
-    ...
-  }
-  """
   logger.info(f'Parsing {len(inventories)} inventories')
   for inventory_date, station_ids in inventories.items():
     s = '' if len(station_ids) == 1 else 's'
-    logger.info(f'  Found {len(station_ids)} station{s} on {inventory_date}')
-    for station_id in station_ids:
-      if station_id not in station_availability:
-        station_availability[station_id] = []
-      station_availability[station_id].append(inventory_date)
+    logger.debug(f'  Found {len(station_ids)} station{s} on {inventory_date}')
+    for sid in station_ids:
+      if sid not in station_availability:
+        station_availability[sid] = []
+      station_availability[sid].append(inventory_date)
 
 
   s = '' if len(station_availability) == 1 else 's'
-  logger.info(f'Creating combined inventory with {len(station_availability)} stations')
+  logger.info(f'Creating combined inventory with {len(station_availability)} station{s}')
   inventory = []
   for inventory_station_id, available_dates in station_availability.items():
     available_dates = sorted(available_dates)
@@ -77,54 +68,46 @@ def inventory(start, stop,
 
     inventory.append(entry)
 
-  if requested_station_id is not None:
-    inventory = [entry for entry in inventory if entry['id'] == requested_station_id]
+  if station_id is not None:
+    inventory = [entry for entry in inventory if entry['id'] == station_id]
     if not inventory:
-      raise ValueError(f"Station ID not found in combined inventory: {requested_station_id}")
-    logger.info(f'Filtered inventory to station {requested_station_id}')
+      raise ValueError(f"Station ID not found in combined inventory: {station_id}")
+    logger.info(f'Filtered inventory to station {station_id}')
 
 
   logger.info("Getting geographic locations for each station")
-  kwargs = {
-    'start': start,
-    'stop': stop,
-    'station_id': requested_station_id,
-    'partial_inventory': partial_inventory,
-    'update': update_locations
-  }
-  geo_locations = _get_locations(inventory, output_dir, **kwargs)
-
+  from .locations import locations
+  geo_locations = locations(userid, output_dir=output_dir, update=update_locations, station_id=station_id)
 
   logger.info("Adding geographic locations to inventory entries")
-  for entry in inventory:
-    if entry['id'] in geo_locations:
-      location = geo_locations[entry['id']]
-      entry['location'] = location
-
 
   logger.info("Inventory summary")
   for entry in inventory:
+    if entry['id'] in geo_locations:
+      entry['location'] = geo_locations[entry['id']]
     logger.info(f"{entry['id']}: ")
     logger.info(f"  startDate: {entry['startDate']}")
     logger.info(f"  stopDate:  {entry['stopDate']}")
     logger.info(f"  Unavailable: {len(entry.get('unavailable', []))}/{n_days} ({100-entry['available_percent']:.1f}%)")
-    logger.info(f"  Geographic location changed: {entry.get('location', {}).get('geo_location_changed', None)}")
-    for date_key in ['start', 'stop']:
-      if entry.get('location', {}).get(date_key, {}).get('error'):
-        msg = f"{date_key}Date: {entry['location'][date_key]['error']}"
-        logger.info(f"  Error fetching geographic location on {msg}")
-      elif entry.get('location', {}).get(date_key):
-        glat = entry['location'][date_key]['glat']
-        glon = entry['location'][date_key]['glon']
-        logger.info(f"  Geographic location on {date_key}Date (lat, lon): ({glat}°, {glon}°)")
+
+    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
+    if entry.get('location', None) is None:
+      logger.warning("  Warning: location information is missing")
+    elif geo_location_changed is False:
+      logger.warning("  Warning: geographic location changed")
+    elif geo_location_changed is None:
+      logger.warning("  Warning: could not determine if geographic location changed")
+    logger.info(f"  Start location: {entry['location']['start']}")
+    logger.info(f"  Stop location:  {entry['location']['stop']}")
 
 
   kwargs = {
     'start': start,
     'stop': stop,
-    'station_id': requested_station_id,
+    'station_id': station_id,
     'partial_inventory': partial_inventory
   }
+
   _write_files(inventory, output_dir, **kwargs)
 
   return inventory
@@ -140,7 +123,7 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
     return dt.datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=dt.timezone.utc)
 
   def inventory_file_path(output_dir, start):
-    return output_dir / f"{start:%Y-%m-%d}.json"
+    return output_dir / "inventory" / "daily" / f"{start:%Y-%m-%d}.json"
 
   def write_inventory_file(output_dir, start, payload):
     import json
@@ -154,26 +137,28 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
   if stop < start:
     raise ValueError('stop must be on or after start')
 
-  inventory_dir = output_dir / "daily"
-
   inventory_data = {}
   requested = 0
-  for current in _date_range(start, stop):
+  data_range = _date_range(start, stop)
+  s = '' if len(data_range) == 1 else 's'
+  logger.info(f"Getting inventory on {len(data_range)} day{s} from {start:%Y-%m-%d} to {stop:%Y-%m-%d}")
+  for current in data_range:
 
     file_date = current.strftime('%Y-%m-%d')
-    logger.info(f"Getting inventory for {file_date}")
+    logger.debug(f"Getting inventory for {file_date}")
 
-    output_file = inventory_file_path(inventory_dir, current)
+    output_file = inventory_file_path(output_dir, current)
+
     if output_file.exists():
       if not update:
-        logger.info(f'  Found cache: {path_relative_to_cwd(output_file)}')
+        logger.debug(f'  Found cache: {path_relative_to_cwd(output_file)}')
         with output_file.open() as stream:
           import json
           payload = json.load(stream)
         inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
         continue
       else:
-        logger.info(f'  Updating existing: {path_relative_to_cwd(output_file)}')
+        logger.debug(f'  Updating existing: {path_relative_to_cwd(output_file)}')
 
     if requested > 0 and delay > 0:
       time.sleep(delay)
@@ -181,7 +166,7 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
     payload = _get_inventory(current, timeout=timeout)
     requested += 1
     stations = payload.get('stations', []) if isinstance(payload, dict) else []
-    output_file = write_inventory_file(inventory_dir, current, payload)
+    output_file = write_inventory_file(output_dir, current, payload)
     logger.info(f'  {path_relative_to_cwd(output_file)}: {len(stations)} stations')
     inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
 

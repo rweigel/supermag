@@ -1,33 +1,17 @@
-import logging
+import utilrsw
+logger = utilrsw.logger(console_format='%(name)s %(levelname)s : %(message)s')
 
 
-LOGGER_NAME = __package__
-
-
-def configure_logging(level=None, format_string='%(name)s: %(message)s'):
-  logger = logging.getLogger(LOGGER_NAME)
-  if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(format_string))
-    logger.addHandler(handler)
-    logger.propagate = False
-  if level is not None:
-    logger.setLevel(level)
-  elif logger.level == logging.NOTSET:
-    logger.setLevel(logging.INFO)
-  return logger
-
-
-def set_logging_level(level, logger_names=None):
-  logging.getLogger(LOGGER_NAME).setLevel(level)
+def set_logging_level(level):
+  logger.setLevel(level)
+  for handler in logger.handlers:
+    handler.setLevel(level)
 
 
 def get(url, format='json', cafile=None, timeout=30):
   import os
   import urllib3
   import certifi
-
-  logger = logging.getLogger(__name__)
 
   logger.debug("Getting URL: %s", url)
 
@@ -61,8 +45,6 @@ def get(url, format='json', cafile=None, timeout=30):
 def _parse_response(response, format=None):
   import re
   import json
-
-  logger = logging.getLogger(__name__)
 
   debug_response = False
 
