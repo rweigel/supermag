@@ -1,7 +1,7 @@
 import logging
 
 from .util import configure_logging
-logger = configure_logging(__name__)
+logger = configure_logging()
 
 from .config import config
 CONFIG = config()
@@ -285,7 +285,7 @@ def main_data():
   args = parse_data_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG, ['supermag', 'supermag.data', 'supermag.util'])
+    set_logging_level(logging.DEBUG)
 
   logger.debug("Parsed command-line arguments:")
   for arg in vars(args):
@@ -356,7 +356,7 @@ def main_inventory():
   args = parse_inventory_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG, ['supermag', 'supermag.inventory', 'supermag.data', 'supermag.util'])
+    set_logging_level(logging.DEBUG)
 
   kwargs = {
     'output_dir': args.output_dir,
@@ -378,7 +378,7 @@ def main_locations():
   args = parse_location_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG, ['supermag', 'supermag.data', 'supermag.util'])
+    set_logging_level(logging.DEBUG)
 
   kwargs = {
     'output_dir': args.output_dir,

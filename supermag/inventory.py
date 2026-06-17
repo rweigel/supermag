@@ -14,7 +14,7 @@ Short tests:
 """
 
 from .util import configure_logging
-logger = configure_logging(__name__)
+logger = configure_logging()
 
 from .config import config
 CONFIG = config()

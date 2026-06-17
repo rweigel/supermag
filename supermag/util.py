@@ -1,20 +1,25 @@
 import logging
 
 
-def configure_logging(name, level=logging.INFO, format_string='%(name)s: %(message)s'):
-  logging.basicConfig(level=level, format=format_string)
-  logger = logging.getLogger(name)
-  logger.setLevel(level)
+LOGGER_NAME = __package__
+
+
+def configure_logging(level=None, format_string='%(name)s: %(message)s'):
+  logger = logging.getLogger(LOGGER_NAME)
+  if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(format_string))
+    logger.addHandler(handler)
+    logger.propagate = False
+  if level is not None:
+    logger.setLevel(level)
+  elif logger.level == logging.NOTSET:
+    logger.setLevel(logging.INFO)
   return logger
 
 
 def set_logging_level(level, logger_names=None):
-  logging.getLogger().setLevel(level)
-  if logger_names is None:
-    return
-
-  for logger_name in logger_names:
-    logging.getLogger(logger_name).setLevel(level)
+  logging.getLogger(LOGGER_NAME).setLevel(level)
 
 
 def get(url, format='json', cafile=None, timeout=30):
@@ -97,7 +102,7 @@ def _parse_response(response, format=None):
 def path_relative_to_cwd(path):
   import os
   from pathlib import Path
-  return Path(os.path.relpath(Path(path).resolve(), Path.cwd()))
+  return f"./{Path(os.path.relpath(Path(path).resolve(), Path.cwd()))}"
 
 
 def check_userid(userid):
@@ -106,4 +111,3 @@ def check_userid(userid):
 
   if userid == 'USERID':
     raise ValueError("Provide a valid SuperMAG user id instead of the placeholder 'USERID'")
-

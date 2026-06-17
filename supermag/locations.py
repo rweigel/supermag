@@ -5,10 +5,9 @@ Usage:
 """
 
 from .util import path_relative_to_cwd, configure_logging
-
-logger = configure_logging(__name__)
-
 from .config import config
+
+logger = configure_logging()
 CONFIG = config()
 
 
@@ -23,16 +22,14 @@ def locations(userid,
   locations = _read_locations(locations_file)
 
   inventory = _read_inventory(output_dir, station_id=station_id)
-  logger.debug(f"Found {len(inventory)} stations")
 
   locations_new = _fetch_locations(userid, inventory, output_dir, locations, update)
 
   # Merge new locations with existing locations
   if station_id is None:
-    logger.info("Merging existing locations with possibly updated locations.")
+    logger.debug("Merging existing locations with possibly updated locations.")
   else:
-    logger.info(f"Replacing existing location for {station_id} with possibly updated location.")
-
+    logger.debug(f"Replacing existing location for {station_id} with possibly updated location.")
   locations.update(locations_new)
 
   # Print missing locations to console
@@ -45,10 +42,13 @@ def locations(userid,
     for station_id in missing_locations:
       logger.error(f'  Station ID: {station_id}')
 
+  # Write updated locations to file
   _write_locations(locations, locations_file)
 
-  return locations
-
+  if station_id is None:
+    return locations
+  else:
+    return locations.get(station_id, None)
 
 def _fetch_locations(userid,
                     inventory,
@@ -66,33 +66,30 @@ def _fetch_locations(userid,
     station_id = entry['id']
 
     existing_location = existing_locations.get(station_id)
+
+    start_isodate = f"{entry['startDate']}"
+    stop_isodate = f"{entry['stopDate']}"
+
     if not update and existing_location:
-      if _has_location(existing_location.get('start', {})) or _has_location(existing_location.get('stop', {})):
-        logger.info(f"{station_id} already has location, skipping fetch because update=False.")
-        _match = _locations_match(existing_location.get('start', {}), existing_location.get('stop', {}))
-        existing_location['geo_location_changed'] = None if _match is None else not _match
+      location_start = existing_location.get('start', {})
+      location_stop = existing_location.get('stop', {})
+      if _has_location(location_start) or _has_location(location_stop):
+        logger.debug(f"{station_id} already has location, skipping fetch because update=False.")
+        _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
         locations[station_id] = existing_location
         continue
 
-    start_isodate = f"{entry['startDate']}"
     location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
-
-    stop_isodate = f"{entry['stopDate']}"
     location_stop, error_stop = _fetch_location(userid, station_id, stop_isodate, "last", update=update)
 
-    if location_start is not None and location_stop is not None and location_start != location_stop:
-      logger.warning(f"Warning: {station_id} has different locations at start and stop times.")
-      logger.warning(f"  Start location: {location_start} on {stop_isodate}")
-      logger.warning(f"  Stop location:  {location_stop} on {stop_isodate}")
-      logger.warning(f"  Using start location for station {station_id}.")
+    _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
 
     location_start = _location_record(stop_isodate, location_start, error_start)
     location_stop = _location_record(stop_isodate, location_stop, error_stop)
 
     if _has_location(location_start) or _has_location(location_stop):
-      _match = _locations_match(location_start, location_stop)
       locations[station_id] = {
-        'geo_location_changed': None if _match is None else not _match,
+        'geo_location_changed': _locations_match(location_start, location_stop),
         'start': location_start,
         'stop': location_stop,
       }
@@ -119,7 +116,7 @@ def _fetch_location(userid,
                     update=False):
   from .data import data as data
 
-  logger.info(f"Fetching location for station {station_id} on {isodate}")
+  logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
   data, error = data(userid, station_id, isodate, extent)
 
@@ -147,6 +144,8 @@ def _fetch_location(userid,
 
 
 def _has_location(location_record):
+  if location_record is None:
+    return False
   a = location_record.get('glat', None) is not None
   b = location_record.get('glon', None) is not None
   return a and b
@@ -178,6 +177,19 @@ def _locations_match(start_location, stop_location):
   )
 
 
+def _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate):
+
+  start_msg = f"  Start location on {start_isodate}: {location_start}"
+  stop_msg =  f"  Stop location on {stop_isodate}:  {location_stop}"
+  if not _locations_match(location_start, location_stop):
+    logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
+    logger.warning(f"  {start_msg}")
+    logger.warning(f"  {stop_msg}")
+  else:
+    logger.debug(start_msg)
+    logger.debug(stop_msg)
+
+
 def _read_inventory(output_dir, station_id=None):
   # Always read full inventory file. Will subset below.
   inventory_file = output_dir / 'inventory' / 'inventory.json'
@@ -195,11 +207,13 @@ def _read_inventory(output_dir, station_id=None):
   if not isinstance(inventory, list):
     raise ValueError(f"Inventory file {inventory_file} does not contain a list of stations")
 
+  logger.debug(f"  Read {len(inventory)} stations from inventory file {inventory_file}")
+
   if station_id is not None:
     inventory = [entry for entry in inventory if entry.get('id') == station_id]
     if not inventory:
       raise ValueError(f"Station ID not found in inventory: {station_id}")
-    logger.info(f"Filtered inventory to station {station_id}")
+    logger.debug(f"  Filtered inventory to station {station_id}")
 
   return inventory
 
@@ -209,15 +223,16 @@ def _read_locations(output_file):
 
   locations = {}
   if not output_file.exists():
-    logger.info(f"No existing locations file found at {output_file}, starting with empty locations.")
+    logger.debug(f"No existing locations file found at {output_file}, starting with empty locations.")
     return locations
   else:
-    logger.info(f"Using existing locations from {output_file}")
+    logger.debug(f"Using existing locations from {output_file}")
 
+  logger.debug(f"Reading {output_file}")
   with output_file.open() as stream:
-    payload = json.load(stream)
+    locations = json.load(stream)
 
-  logger.info(f"Read {len(payload)} station locations from {output_file}")
+  logger.debug(f"  Read {len(locations)} station locations from {output_file}")
 
   return locations
 
@@ -230,7 +245,7 @@ def _write_locations(locations, output_file):
     json.dump(locations, stream, indent=2)
     stream.write('\n')
 
-  logger.info(f'Wrote {path_relative_to_cwd(output_file)} with {len(locations)} station locations')
+  logger.debug(f'Wrote {path_relative_to_cwd(output_file)} with {len(locations)} station locations')
 
 
 if __name__ == '__main__':
