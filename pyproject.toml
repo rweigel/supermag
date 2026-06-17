@@ -18,5 +18,5 @@ include = ["supermag*"]
 
 [project.scripts]
 supermag-inventory = "supermag.cli:main_inventory"
-supermag-locations = "supermag.locations:main"
+supermag-locations = "supermag.cli:main_locations"
 supermag-data      = "supermag.cli:main_data"

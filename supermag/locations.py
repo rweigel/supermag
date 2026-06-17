@@ -4,18 +4,62 @@ Usage:
   supermag-locations
 """
 
-import logging
-from .util import path_relative_to_cwd, configure_logging, set_logging_level
+from .util import path_relative_to_cwd, configure_logging
 
 logger = configure_logging(__name__)
 
+from .config import config
+CONFIG = config()
 
-def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, write_output=True, output_file=None):
 
-  if output_file is None:
-    output_file = output_dir / 'locations.json'
+def locations(userid,
+              output_dir=CONFIG['common']['output_dir'],
+              update=False,
+              station_id=None):
 
-  existing_locations = _read_locations(output_dir / 'locations.json')
+  locations_file = output_dir / 'inventory' / 'locations.json'
+
+  # Read existing locations from file if it exists
+  locations = _read_locations(locations_file)
+
+  inventory = _read_inventory(output_dir, station_id=station_id)
+  logger.debug(f"Found {len(inventory)} stations")
+
+  locations_new = _fetch_locations(userid, inventory, output_dir, locations, update)
+
+  # Merge new locations with existing locations
+  if station_id is None:
+    logger.info("Merging existing locations with possibly updated locations.")
+  else:
+    logger.info(f"Replacing existing location for {station_id} with possibly updated location.")
+
+  locations.update(locations_new)
+
+  # Print missing locations to console
+  missing_locations = [
+    station_id for station_id, loc in locations.items()
+    if not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {}))
+  ]
+  if missing_locations:
+    logger.error(f'Missing locations for {len(missing_locations)} stations:')
+    for station_id in missing_locations:
+      logger.error(f'  Station ID: {station_id}')
+
+  _write_locations(locations, locations_file)
+
+  return locations
+
+
+def _fetch_locations(userid,
+                    inventory,
+                    output_dir=CONFIG['common']['output_dir'],
+                    existing_locations=None,
+                    update=False):
+
+  import copy
+
+  existing_locations = existing_locations or {}
+  existing_locations = copy.deepcopy(existing_locations)
 
   locations = {}
   for entry in inventory:
@@ -24,23 +68,26 @@ def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, wr
     existing_location = existing_locations.get(station_id)
     if not update and existing_location:
       if _has_location(existing_location.get('start', {})) or _has_location(existing_location.get('stop', {})):
-        logger.debug(f"Station {station_id} already has location, skipping fetch.")
+        logger.info(f"{station_id} already has location, skipping fetch because update=False.")
         _match = _locations_match(existing_location.get('start', {}), existing_location.get('stop', {}))
         existing_location['geo_location_changed'] = None if _match is None else not _match
         locations[station_id] = existing_location
         continue
 
-    stop_isotime = f"{entry['stopDate']}"
-    location_stop, error_stop = _fetch_location(station_id, stop_isotime, output_dir, "last", user_id=user_id, update=update)
+    start_isodate = f"{entry['startDate']}"
+    location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
 
-    start_isotime = f"{entry['startDate']}"
-    location_start, error_start = _fetch_location(station_id, start_isotime, output_dir, "first", user_id=user_id, update=update)
+    stop_isodate = f"{entry['stopDate']}"
+    location_stop, error_stop = _fetch_location(userid, station_id, stop_isodate, "last", update=update)
 
     if location_start is not None and location_stop is not None and location_start != location_stop:
-      logger.debug(f"Warning: Station {station_id} has different locations at start and stop times.")
+      logger.warning(f"Warning: {station_id} has different locations at start and stop times.")
+      logger.warning(f"  Start location: {location_start} on {stop_isodate}")
+      logger.warning(f"  Stop location:  {location_stop} on {stop_isodate}")
+      logger.warning(f"  Using start location for station {station_id}.")
 
-    location_start = _location_record(start_isotime, location_start, error_start)
-    location_stop = _location_record(stop_isotime, location_stop, error_stop)
+    location_start = _location_record(stop_isodate, location_start, error_start)
+    location_stop = _location_record(stop_isodate, location_stop, error_stop)
 
     if _has_location(location_start) or _has_location(location_stop):
       _match = _locations_match(location_start, location_stop)
@@ -62,25 +109,27 @@ def fetch_locations(inventory, output_dir, user_id='superhapi', update=False, wr
           'stop': _location_record('', None, error_stop)
         }
 
-  if write_output:
-    _write_locations(locations, output_file)
-
   return locations
 
 
-def _fetch_location(station_id, isotime, output_dir, value='first', user_id='superhapi', update=False):
-  from .data import data as sm_data
+def _fetch_location(userid,
+                    station_id,
+                    isodate,
+                    value='first',
+                    update=False):
+  from .data import data as data
 
+  logger.info(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
-  data, error = sm_data(user_id, station_id, isotime, extent, extra_parameters=['geo'])
+  data, error = data(userid, station_id, isodate, extent)
 
   if error is not None:
-    emsg = f"Failed to fetch data for station {station_id} on {isotime}: {error}"
+    emsg = f"Failed to fetch data for station {station_id} on {isodate}: {error}"
     logger.debug(emsg)
     return None, emsg
 
   if not isinstance(data, list) or len(data) == 0:
-    emsg = f"No data returned for station {station_id} on {isotime}"
+    emsg = f"No data returned for station {station_id} on {isodate}"
     logger.debug(emsg)
     return None, emsg
 
@@ -92,7 +141,7 @@ def _fetch_location(station_id, isotime, output_dir, value='first', user_id='sup
     raise ValueError(f"Invalid value parameter: {value}. Must be 'first' or 'last'.")
 
   if 'glat' not in first_row or 'glon' not in first_row:
-    return None, f"Missing 'glat' or 'glon' in data for station {station_id} at time {isotime}"
+    return None, f"Missing 'glat' or 'glon' in data for station {station_id} at time {isodate}"
 
   return (first_row['glat'], first_row['glon']), None
 
@@ -129,75 +178,48 @@ def _locations_match(start_location, stop_location):
   )
 
 
+def _read_inventory(output_dir, station_id=None):
+  # Always read full inventory file. Will subset below.
+  inventory_file = output_dir / 'inventory' / 'inventory.json'
+
+  if not inventory_file.exists():
+    raise ValueError(f"Inventory file not found: {inventory_file}. Run supermag-inventory first.")
+
+  try:
+    import json
+    logger.debug(f"Reading {inventory_file}")
+    inventory = json.loads(inventory_file.read_text())
+  except Exception as error:
+    raise ValueError(f"Failed to read inventory file {inventory_file}: {error}")
+
+  if not isinstance(inventory, list):
+    raise ValueError(f"Inventory file {inventory_file} does not contain a list of stations")
+
+  if station_id is not None:
+    inventory = [entry for entry in inventory if entry.get('id') == station_id]
+    if not inventory:
+      raise ValueError(f"Station ID not found in inventory: {station_id}")
+    logger.info(f"Filtered inventory to station {station_id}")
+
+  return inventory
+
+
 def _read_locations(output_file):
   import json
 
   locations = {}
   if not output_file.exists():
-    logger.debug(f"No existing locations file found at {output_file}, starting with empty locations.")
+    logger.info(f"No existing locations file found at {output_file}, starting with empty locations.")
     return locations
   else:
-    logger.debug(f"Using existing locations from {output_file}")
+    logger.info(f"Using existing locations from {output_file}")
 
   with output_file.open() as stream:
     payload = json.load(stream)
 
-  for station_id, location in payload.items():
-    if not isinstance(location, dict):
-      continue
-    if 'start' in location or 'stop' in location:
-      start_location = _normalize_location_record(location.get('start', {}))
-      stop_location = _normalize_location_record(location.get('stop', {}))
-      if 'geo_location_changed' in location:
-        _changed = location['geo_location_changed']
-      elif 'nochange' in location:
-        _changed = not location['nochange']
-      else:
-        _match = _locations_match(start_location, stop_location)
-        _changed = None if _match is None else not _match
-      locations[station_id] = {
-        'geo_location_changed': _changed,
-        'start': start_location,
-        'stop': stop_location,
-      }
-      continue
-
-    at_value = location.get('at', location.get('start', ''))
-    start_location = _normalize_location_record({
-      'datetime': at_value,
-      'glat': location.get('glat', ''),
-      'glon': location.get('glon', ''),
-    })
-    stop_location = _normalize_location_record({
-      'datetime': at_value,
-      'glat': location.get('glat', ''),
-      'glon': location.get('glon', ''),
-    })
-    if 'geo_location_changed' in location:
-      _changed = location['geo_location_changed']
-    elif 'nochange' in location:
-      _changed = not location['nochange']
-    else:
-      _match = _locations_match(start_location, stop_location)
-      _changed = None if _match is None else not _match
-    locations[station_id] = {
-      'geo_location_changed': _changed,
-      'start': start_location,
-      'stop': stop_location,
-    }
+  logger.info(f"Read {len(payload)} station locations from {output_file}")
 
   return locations
-
-
-def _normalize_location_record(location):
-  if not isinstance(location, dict):
-    return _location_record('', None, None)
-
-  return {
-    'datetime': location.get('datetime', location.get('at', location.get('start', ''))),
-    'glat': location.get('glat', None),
-    'glon': location.get('glon', None),
-  }
 
 
 def _write_locations(locations, output_file):
@@ -210,102 +232,7 @@ def _write_locations(locations, output_file):
 
   logger.info(f'Wrote {path_relative_to_cwd(output_file)} with {len(locations)} station locations')
 
-  # Print missing locations to console
-  missing_locations = [
-    station_id for station_id, loc in locations.items()
-    if not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {}))
-  ]
-  if missing_locations:
-    logger.error(f'Missing locations for {len(missing_locations)} stations:')
-    for station_id in missing_locations:
-      logger.error(f'  Station ID: {station_id}')
-
-
-def parse_args():
-  import argparse
-  from pathlib import Path
-
-
-  description = """Reads inventory.json and fetches data on each station's first
-  and last available day to get geographic latitude and longitude. Writes results
-  to locations.json.
-  """
-
-
-  parser = argparse.ArgumentParser(
-    description=description
-  )
-
-  inventory_file = Path(__file__).resolve().parent.parent / 'data' / 'inventory.json'
-  output_dir = "."
-
-  parser.add_argument(
-    '--inventory-file',
-    default=inventory_file,
-    type=Path,
-    help=f'Path to combined inventory.json file. Default: {path_relative_to_cwd(inventory_file)}',
-  )
-  parser.add_argument(
-    '--output-dir',
-    default=output_dir,
-    type=Path,
-    help=f'Path to write locations output file(s). Default: {path_relative_to_cwd(output_dir)}',
-  )
-  parser.add_argument(
-    '--station-id',
-    default=None,
-    help='Fetch location data only for the given station ID. Default: all stations.',
-  )
-  parser.add_argument(
-    '--update',
-    action='store_true',
-    help='Refetch stations even when locations.json already has location information.',
-  )
-  parser.add_argument(
-    '--debug',
-    action='store_true',
-    help='Enable debug logging.',
-  )
-
-  return parser.parse_args()
-
-
-def main():
-  import json
-
-  args = parse_args()
-
-  if args.debug:
-    from supermag import data as _data_module
-    set_logging_level(logging.DEBUG, [__name__, _data_module.__name__])
-    logger.debug('Debug logging enabled')
-
-  logger.debug(f"Reading {args.inventory_file}")
-  inventory = json.loads(args.inventory_file.read_text())
-
-  if not isinstance(inventory, list):
-    raise ValueError(f"Inventory file {args.inventory_file} does not contain a list of stations")
-
-  if args.station_id is not None:
-    inventory = [entry for entry in inventory if entry.get('id') == args.station_id]
-    if not inventory:
-      raise ValueError(f"Station ID not found in inventory: {args.station_id}")
-    logger.info(f"Filtered inventory to station {args.station_id}")
-
-  output_file = args.output_dir / 'locations.json'
-  if args.station_id is not None:
-    output_file = args.output_dir / 'partial' / f'locations-{args.station_id}.json'
-
-  logger.debug(f"Found {len(inventory)} stations")
-
-  kwargs = {
-    'update': args.update,
-    'write_output': True,
-    'output_file': output_file,
-    'user_id': 'superhapi'
-  }
-  fetch_locations(inventory, args.output_dir, **kwargs)
-
 
 if __name__ == '__main__':
-  main()
+  from .cli import main_locations
+  main_locations()

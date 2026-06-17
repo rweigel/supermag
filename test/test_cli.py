@@ -46,7 +46,7 @@ def test_format():
     _remove(output_file)
 
     cmd = base_cmd + [
-            '--userid', 'superhapi',
+      '--userid', userid,
             '--format', format,
             '--output-file', str(output_file),
             '--ignore-cache'

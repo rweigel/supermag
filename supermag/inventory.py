@@ -17,17 +17,17 @@ from .util import configure_logging
 logger = configure_logging(__name__)
 
 from .config import config
-CONFIG = config('inventory')
+CONFIG = config()
 
 
 def inventory(start, stop,
-              output_dir=CONFIG['output_dir'],
+              output_dir=CONFIG['common']['output_dir'],
               update_inventory=False,
               update_locations=False,
               station_id=None,
               partial_inventory=False,
-              timeout=CONFIG['timeout'],
-              delay=CONFIG['delay']):
+              timeout=CONFIG['inventory']['timeout'],
+              delay=CONFIG['inventory']['delay']):
 
   kwargs = {
     'output_dir': output_dir,
@@ -130,7 +130,7 @@ def inventory(start, stop,
   return inventory
 
 
-def get_inventories(start, stop, output_dir=CONFIG['output_dir'], update=False, timeout=CONFIG['timeout'], delay=CONFIG['delay']):
+def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], update=False, timeout=CONFIG['inventory']['timeout'], delay=CONFIG['inventory']['delay']):
 
   import time
   from .util import path_relative_to_cwd
@@ -188,19 +188,7 @@ def get_inventories(start, stop, output_dir=CONFIG['output_dir'], update=False, 
   return inventory_data
 
 
-def _get_locations(entry, output_dir, start, stop, station_id=None, partial_inventory=False, update=False):
-  from .locations import fetch_locations
-
-  output_file = output_dir / 'locations.json'
-  if station_id is not None:
-    output_file = output_dir / 'partial' / f'locations-{station_id}.json'
-  elif partial_inventory:
-    output_file = output_dir / 'partial' / f'locations-{start}-{stop}.json'
-
-  return fetch_locations(entry, output_dir, update=update, output_file=output_file)
-
-
-def _get_inventory(start, timeout=CONFIG['timeout']):
+def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
 
   from urllib.parse import urlencode
   from .util import get
@@ -211,7 +199,7 @@ def _get_inventory(start, timeout=CONFIG['timeout']):
       'interval': 1440,
       'fidelity': '60s',
     })
-  url = f'{CONFIG['base_url']}?{query}'
+  url = f'{CONFIG['inventory']['base_url']}?{query}'
 
   logger.debug(f"  Fetching {url}")
   response, error = get(url, timeout=timeout)

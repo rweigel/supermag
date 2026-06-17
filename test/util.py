@@ -5,7 +5,7 @@ import pickle
 tval_iso = '2001-01-01T00:00Z'
 tval = 978307200.0  # Jan 1, 2001
 
-userid = 'superhapi'
+userid = None
 
 def check_output(data,
                   output_type='data',
@@ -16,8 +16,8 @@ def check_output(data,
   output_target = output_file if output_file is not None else 'response'
 
   if output_type == 'data':
-    keys_raw = ['tval_iso', 'tval', 'ext', 'iaga', 'mlt', 'mcolat', 'decl', 'sza', 'N', 'E', 'Z']
-    keys_csv = ['tval_iso', 'tval', 'ext', 'iaga', 'mlt', 'mcolat', 'decl', 'sza',  'N_nez', 'N_geo', 'E_nez', 'E_geo', 'Z_nez', 'Z_geo']
+    keys_raw = ['tval_iso', 'tval', 'ext', 'iaga',  'glon', 'glat', 'mlt', 'mcolat', 'decl', 'sza', 'N', 'E', 'Z']
+    keys_csv = ['tval_iso', 'tval', 'ext', 'iaga', 'glon', 'glat', 'mlt', 'mcolat', 'decl', 'sza',  'N_nez', 'N_geo', 'E_nez', 'E_geo', 'Z_nez', 'Z_geo']
   if output_type == 'indices':
     keys_raw = ['tval_iso', 'tval', 'SME', 'SML', 'SMLmlat', 'SMLmlt', 'SMLglat', 'SMLglon', 'SMLstid', 'SMU', 'SMUmlat', 'SMUmlt', 'SMUglat', 'SMUglon', 'SMUstid', 'SMEnum', 'SMEs', 'SMLs', 'SMLsmlat', 'SMLsmlt', 'SMLsglat', 'SMLsglon', 'SMLsstid', 'SMUs', 'SMUsmlat', 'SMUsmlt', 'SMUsglat', 'SMUsglon', 'SMUsstid', 'SMEsnum', 'SMEd', 'SMLd', 'SMLdmlat', 'SMLdmlt', 'SMLdglat', 'SMLdglon', 'SMLdstid', 'SMUd', 'SMUdmlat', 'SMUdmlt', 'SMUdglat', 'SMUdglon', 'SMUdstid', 'SMEdnum', 'SMEr', 'SMLr', 'SMLrmlat', 'SMLrmlt', 'SMLrglat', 'SMLrglon', 'SMLrstid', 'SMUr', 'SMUrmlat', 'SMUrmlt', 'SMUrglat', 'SMUrglon', 'SMUrstid', 'SMErnum', 'smr', 'smr00', 'smr06', 'smr12', 'smr18', 'smrnum', 'smrnum00', 'smrnum06', 'smrnum12', 'smrnum18', 'bgse', 'bgsm', 'vgse', 'vgsm', 'clockgse', 'clockgsm', 'density', 'dynpres', 'epsilon', 'newell']
     keys_csv = keys_raw.copy()

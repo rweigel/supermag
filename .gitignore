@@ -1,4 +1,4 @@
 data/*
 supermag.egg-info/*
 __pycache__/
-supermag-cache/
+supermag-data/

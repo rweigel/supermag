@@ -2,7 +2,7 @@ from .util import configure_logging
 logger = configure_logging(__name__)
 
 from .config import config
-CONFIG = config('data')
+CONFIG = config()
 
 # If true, show response data in debug logs.
 debug_response = True
@@ -12,7 +12,7 @@ def indices(userid, start, extent,
             format='json',
             cache=True,
             ignore_cache=False,
-            cache_dir=None,
+            cache_dir=CONFIG['common']['output_dir'],
             cafile=None,
             timeout=30):
 
@@ -26,13 +26,13 @@ def indices(userid, start, extent,
 
 
 def data(userid, stationid, start, extent,
-          baseline='yearly',
+          baseline='none',
           delta='none',
           format='json',
           cadence='PT1M',
           cache=True,
           ignore_cache=False,
-          cache_dir=None,
+          cache_dir=CONFIG['common']['output_dir'],
           cafile=None,
           timeout=30):
 
@@ -94,7 +94,7 @@ def data(userid, stationid, start, extent,
 
   common_params = f"start={start}&extent={extent}&logon={userid}"
   if stationid == 'indices':
-    url = CONFIG['base_url_indices']
+    url = CONFIG['data']['base_url_indices']
     url += f"&{common_params}&indices=all&swi=all&imf=all"
   else:
     # Call the SuperMAG API to get the data
@@ -102,9 +102,9 @@ def data(userid, stationid, start, extent,
     options.append(f"delta={delta}")
     options.append(f"baseline={baseline}")
     options = '&'.join(options)
-    options += '&' + '&'.join(CONFIG['extra_parameters'])
+    options += '&' + '&'.join(CONFIG['data']['extra_parameters'])
 
-    url = CONFIG['base_url_data']
+    url = CONFIG['data']['base_url_data']
     url += f"&{common_params}&station={stationid}&{options}"
 
   data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile, timeout=timeout)
@@ -265,12 +265,18 @@ def _subset(data, start, extent):
 
 def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=None, baseline=None):
 
+  if False:
+    _locals = locals()
+    logger.debug("data._cache_get() called with arguments:")
+    for arg in _locals:
+      logger.debug(f"  {arg}: {_locals[arg]}")
+
   if format not in ['json', 'dataframe', 'csv', 'list']:
     raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'list'.")
 
   # csv/list are generated from JSON records.
   file_ext = 'dataframe' if format == 'dataframe' else 'json'
-  cached = _cache_read(cache_dir, stationid, start, extent, format=file_ext, cadence=cadence, delta=None, baseline=None)
+  cached = _cache_read(cache_dir, stationid, start, extent, format=file_ext, cadence=cadence, delta=delta, baseline=baseline)
   if cached is None:
     return None, None
 
@@ -283,10 +289,17 @@ def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, ca
 
 
 def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
-  import pathlib
 
+  if False:
+    _locals = locals()
+    logger.debug("data._cache_path() called with arguments:")
+    for arg in _locals:
+      logger.debug(f"  {arg}: {_locals[arg]}")
+
+
+  import pathlib
   if cache_dir is None:
-    cache_dir = pathlib.Path(__file__).resolve().parent.parent / 'supermag-cache'
+    cache_dir = pathlib.Path(__file__).resolve().parent.parent / CONFIG['common']['output_dir']
   else:
     cache_dir = pathlib.Path(cache_dir)
 
@@ -294,6 +307,7 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
     sub_dir = pathlib.Path(f'indices/{cadence}')
   else:
     sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}")
+
   delta_str = str(delta) if delta is not None else 'none'
   baseline_str = str(baseline) if baseline is not None else 'none'
   cache_path = cache_dir / sub_dir / f"baseline-{baseline_str}" / f"delta-{delta_str}"
@@ -302,6 +316,14 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
 
 def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1M', delta=None, baseline=None):
   """Return cached data for all day-chunk files spanning [start, start+extent). Returns None if any chunk is missing."""
+
+  if False:
+    _locals = locals()
+    logger.debug("data._cache_read() called with arguments:")
+    for arg in _locals:
+      logger.debug(f"  {arg}: {_locals[arg]}")
+
+
   import pickle
   from datetime import datetime, timezone, timedelta
 

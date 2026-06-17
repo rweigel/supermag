@@ -3,11 +3,14 @@ import logging
 from .util import configure_logging
 logger = configure_logging(__name__)
 
+from .config import config
+CONFIG = config()
+
 def parse_data_args():
   import pathlib
   import argparse
 
-  default_cache_dir = 'supermag-cache'
+  default_cache_dir = CONFIG['common']['output_dir']
 
   # If these defaults changed, will need to update tests.
   default_station = 'ABK'
@@ -109,6 +112,11 @@ def parse_data_args():
   )
   args = parser.parse_args()
 
+  args = parser.parse_args()
+  from .util import check_userid
+
+  check_userid(args.userid)
+
   # Normalize times to HH:MMZ
   args.start = args.start[:16] + 'Z'
   args.stop  = args.stop[:16]  + 'Z'
@@ -141,17 +149,13 @@ def parse_inventory_args():
 
   from .util import path_relative_to_cwd
 
-  from .config import config
-  CONFIG = config('inventory')
-
   default_start = '1970-01-01'
   tomorrow = dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
   default_stop  = (tomorrow).isoformat()
 
   epilog =  'Examples:\n'
   epilog += '  supermag-inventory\n'
-  epilog += '  supermag-inventory --update-inventory\n'
-  epilog += '  supermag-inventory --update-locations\n'
+  epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03\n'
   epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations\n'
 
   description = 'Fetch daily SuperMAG inventories and create inventory.json file with list of avaialble dates for each station.'
@@ -175,9 +179,9 @@ def parse_inventory_args():
   )
   parser.add_argument(
     '--output-dir',
-    default=CONFIG['output_dir'],
+    default=CONFIG['common']['output_dir'],
     type=Path,
-    help=f'Base directory for outputs. Default: {path_relative_to_cwd(CONFIG['output_dir'])}',
+    help=f'Base directory for outputs. Default: {path_relative_to_cwd(CONFIG['common']['output_dir'])}',
   )
   parser.add_argument(
     '--station-id',
@@ -196,15 +200,15 @@ def parse_inventory_args():
   )
   parser.add_argument(
     '--timeout',
-    default=CONFIG['timeout'],
+    default=CONFIG['inventory']['timeout'],
     type=int,
-    help=f'HTTP timeout in seconds for each fetch. Default: {CONFIG['timeout']}',
+    help=f'HTTP timeout in seconds for each fetch. Default: {CONFIG['inventory']['timeout']}',
   )
   parser.add_argument(
     '--delay',
-    default=CONFIG['delay'],
+    default=CONFIG['inventory']['delay'],
     type=float,
-    help=f'Delay in seconds between actual HTTP requests. Default: {CONFIG['delay']}',
+    help=f'Delay in seconds between actual HTTP requests. Default: {CONFIG['inventory']['delay']}',
   )
   parser.add_argument(
     '--debug',
@@ -213,6 +217,59 @@ def parse_inventory_args():
   )
   args = parser.parse_args()
   args.partial_inventory = '--start' in sys.argv[1:] or '--stop' in sys.argv[1:]
+  return args
+
+
+def parse_location_args():
+  import argparse
+  from pathlib import Path
+
+  from .util import path_relative_to_cwd
+
+  from .config import config
+  CONFIG = config()
+
+  description = """Reads inventory file and fetches data on each station's first
+  and last available day to get geographic latitude and longitude. Writes results
+  to locations.json.
+  """
+
+  parser = argparse.ArgumentParser(
+    description=description
+  )
+
+  parser.add_argument(
+    '--userid',
+    required=True,
+    help='SuperMAG user ID (required).',
+  )
+  parser.add_argument(
+    '--output-dir',
+    default=CONFIG['common']['output_dir'],
+    type=Path,
+    help=f'Base directory for outputs. Default: {path_relative_to_cwd(CONFIG['common']['output_dir'])}',
+  )
+  parser.add_argument(
+    '--station-id',
+    default=None,
+    help='Fetch location data only for the given station ID. Default: all stations.',
+  )
+  parser.add_argument(
+    '--update',
+    action='store_true',
+    help='Refetch location data even when cached location information found.',
+  )
+  parser.add_argument(
+    '--debug',
+    action='store_true',
+    help='Enable debug logging.',
+  )
+
+  args = parser.parse_args()
+  from .util import check_userid
+
+  check_userid(args.userid)
+
   return args
 
 
@@ -228,7 +285,7 @@ def main_data():
   args = parse_data_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG)
+    set_logging_level(logging.DEBUG, ['supermag', 'supermag.data', 'supermag.util'])
 
   logger.debug("Parsed command-line arguments:")
   for arg in vars(args):
@@ -299,7 +356,7 @@ def main_inventory():
   args = parse_inventory_args()
 
   if args.debug:
-    set_logging_level(logging.DEBUG)
+    set_logging_level(logging.DEBUG, ['supermag', 'supermag.inventory', 'supermag.data', 'supermag.util'])
 
   kwargs = {
     'output_dir': args.output_dir,
@@ -314,3 +371,20 @@ def main_inventory():
   from .inventory import inventory
   inventory(args.start, args.stop, **kwargs)
 
+
+def main_locations():
+  from .util import set_logging_level
+
+  args = parse_location_args()
+
+  if args.debug:
+    set_logging_level(logging.DEBUG, ['supermag', 'supermag.data', 'supermag.util'])
+
+  kwargs = {
+    'output_dir': args.output_dir,
+    'station_id': args.station_id,
+    'update': args.update
+  }
+
+  from .locations import locations
+  locations(args.userid, **kwargs)
