@@ -15,6 +15,7 @@ def inventory(userid,
               output_dir=CONFIG['common']['output_dir'],
               update_inventory=False,
               update_locations=False,
+              include_locations=True,
               station_id=None,
               cafile=None,
               timeout=CONFIG['inventory']['timeout'],
@@ -73,7 +74,6 @@ def inventory(userid,
       }
 
     all_dates = _date_range(available_dates[0], available_dates[-1], format='str')
-    n_days = len(all_dates)
     if len(all_dates) != len(available_dates):
       entry['availability']['available'] = available_dates
       entry['availability']['available_percent'] = 100 * len(available_dates) / len(all_dates)
@@ -94,52 +94,31 @@ def inventory(userid,
   else:
     logger.info("Getting geographic locations for each station")
 
-  if True:
+
+  if not include_locations:
+    geo_locations = None
+  else:
     from .locations import locations
-    geo_locations = locations(userid,
-                              output_dir=output_dir,
-                              update=update_locations,
-                              station_id=station_id,
-                              inventory=inventory)
+    kwargs = {
+      'output_dir': output_dir,
+      'update': update_locations,
+      'station_id': station_id,
+      'inventory': inventory
+    }
+    geo_locations = locations(userid, **kwargs)
 
-
-  station_info = _station_info()
+  station_info = _get_station_info()
 
   logger.info("Adding geographic locations to inventory entries")
 
   for entry in inventory:
-    if entry['id'] in geo_locations:
-      entry['location'] = geo_locations[entry['id']]
+    if geo_locations is not None:
+      if entry['id'] in geo_locations:
+        entry['location'] = geo_locations[entry['id']]
     if entry['id'] in station_info:
       entry['station'] = station_info[entry['id']]
 
-  logger.info("Inventory summary")
-  for entry in inventory:
-    logger.info(f"{entry['id']}: ")
-    logger.info(f"  startDate: {entry['startDate']}")
-    logger.info(f"  stopDate:  {entry['stopDate']}")
-
-    availability = entry.get('availability', {})
-    unavailable = f"{len(availability.get('unavailable', []))}/{n_days}"
-    unavailable += f" ({100-availability['available_percent']:.1f}%)"
-    logger.info(f"  unavailable: {unavailable}")
-
-    logger.info("  station:")
-    for key in entry['station']:
-      logger.info(f"    {key}: {entry['station'][key]}")
-
-
-    logger.info("  location:")
-    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
-    if entry.get('location', None) is None:
-      logger.warning("  Warning: location information is missing")
-    elif geo_location_changed is False:
-      logger.warning("  Warning: geographic location changed")
-    elif geo_location_changed is None:
-      logger.warning("  Warning: could not determine if geographic location changed")
-
-    for key in entry['location']:
-      logger.info(f"    {key}: {entry['location'][key]}")
+  _print_summary(inventory)
 
 
   kwargs = {
@@ -253,7 +232,7 @@ def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
   return response
 
 
-def _station_info(cafile=None, timeout=None):
+def _get_station_info(cafile=None, timeout=None):
 
   from .util import get
   from .config import config
@@ -273,6 +252,40 @@ def _station_info(cafile=None, timeout=None):
       item['glon'] = item.pop('geolon')
 
   return station_info
+
+
+def _print_summary(inventory):
+  logger.info("Inventory summary")
+  for entry in inventory:
+
+    logger.info(f"{entry['id']}: ")
+    logger.info(f"  startDate: {entry['startDate']}")
+    logger.info(f"  stopDate:  {entry['stopDate']}")
+
+    n_days = len(_date_range(entry['startDate'], entry['stopDate']))
+
+    availability = entry.get('availability', {})
+    unavailable = f"{len(availability.get('unavailable', []))}/{n_days}"
+    unavailable += f" ({100-availability['available_percent']:.1f}%)"
+    logger.info(f"  unavailable: {unavailable}")
+
+
+    logger.info("  station:")
+    for key in entry['station']:
+      logger.info(f"    {key}: {entry['station'][key]}")
+
+
+    logger.info("  location:")
+    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
+    if entry.get('location', None) is None:
+      logger.warning("  Warning: location information is missing")
+    elif geo_location_changed is False:
+      logger.warning("  Warning: geographic location changed")
+    elif geo_location_changed is None:
+      logger.warning("  Warning: could not determine if geographic location changed")
+
+    for key in entry['location']:
+      logger.info(f"    {key}: {entry['location'][key]}")
 
 
 def _date_range(start, stop, format='datetime'):
