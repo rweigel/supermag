@@ -17,9 +17,7 @@ def inventory(userid,
               update_locations=False,
               include_locations=True,
               station_id=None,
-              cafile=None,
-              timeout=CONFIG['inventory']['timeout'],
-              delay=CONFIG['inventory']['delay']):
+              cafile=None):
 
   import pathlib
   output_dir = pathlib.Path(output_dir)
@@ -45,9 +43,7 @@ def inventory(userid,
 
   kwargs = {
     'output_dir': output_dir,
-    'update': update_inventory,
-    'timeout': timeout,
-    'delay': delay
+    'update': update_inventory
   }
   inventories = get_inventories(start, stop, **kwargs)
 
@@ -62,7 +58,7 @@ def inventory(userid,
 
 
   s = '' if len(station_availability) == 1 else 's'
-  logger.info(f'Adding {start,stop}Date and availability info to inventories by station ID for {len(station_availability)} station{s}')
+  logger.info(f'Adding {{start,stop}}Date and availability info to inventories by station ID for {len(station_availability)} station{s}')
   inventory = []
   for inventory_station_id, available_dates in station_availability.items():
     available_dates = sorted(available_dates)
@@ -76,7 +72,8 @@ def inventory(userid,
     all_dates = _date_range(available_dates[0], available_dates[-1], format='str')
     if len(all_dates) != len(available_dates):
       entry['availability']['available'] = available_dates
-      entry['availability']['available_percent'] = 100 * len(available_dates) / len(all_dates)
+      available_percent = 100 * len(available_dates) / len(all_dates)
+      entry['availability']['available_percent'] = round(available_percent, 2)
       entry['availability']['unavailable'] = sorted(set(all_dates) - set(available_dates))
 
     inventory.append(entry)
@@ -88,17 +85,17 @@ def inventory(userid,
       return []
     logger.info(f'Filtered inventory to station {station_id}')
 
-
-  if update_locations:
-    logger.info("Getting geographic locations for each station (using cached data, if available)")
-  else:
-    logger.info("Getting geographic locations for each station")
-
-
   if not include_locations:
     geo_locations = None
+    logger.info("Not getting geographic locations for each station on start and stop dates")
   else:
     from .locations import locations
+
+    if update_locations:
+      logger.info("Getting geographic locations for each station on start and stop dates (using cached data, if available)")
+    else:
+      logger.info("Getting geographic locations for each station on start and stop dates")
+
     kwargs = {
       'output_dir': output_dir,
       'update': update_locations,
@@ -107,7 +104,7 @@ def inventory(userid,
     }
     geo_locations = locations(userid, **kwargs)
 
-  station_info = _get_station_info()
+  station_info = _get_station_info(cafile=cafile)
 
   logger.info("Adding geographic locations to inventory entries")
 
@@ -128,13 +125,14 @@ def inventory(userid,
     'partial_inventory': partial_inventory
   }
 
-  from .util import write_combined_files
-  write_combined_files(inventory, output_dir, **kwargs)
+  _write_combined_files(inventory, output_dir, **kwargs)
 
   return inventory
 
 
-def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], update=False, timeout=CONFIG['inventory']['timeout'], delay=CONFIG['inventory']['delay']):
+def get_inventories(start, stop,
+                    output_dir=CONFIG['common']['output_dir'],
+                    update=False):
 
   import time
   import pathlib
@@ -175,8 +173,16 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
   data_range = _date_range(start, stop)
   s = '' if len(data_range) == 1 else 's'
   logger.info(f"Getting inventory on {len(data_range)} day{s} from {start:%Y-%m-%d} to {stop:%Y-%m-%d}")
+  if update:
+    logger.info("Updating inventory files, ignoring cached data")
+  else:
+    logger.info("Using cached inventory files if available")
 
   for date in data_range:
+
+    # Print info when year changes
+    if date.month == 1 and date.day == 1:
+      logger.info(f"Getting inventory for all days in year {date.year}")
 
     date_str = date.strftime('%Y-%m-%d')
     logger.debug(f"Getting inventory for {date_str}")
@@ -193,10 +199,10 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
           inventory_by_date[date_str] = []
         continue
 
-    if requested > 0 and delay > 0:
-      time.sleep(delay)
+    if requested > 0 and CONFIG['inventory']['delay'] > 0:
+      time.sleep(CONFIG['inventory']['delay'])
 
-    inventory_data = _get_inventory(date, timeout=timeout)
+    inventory_data = _get_inventory(date)
     requested += 1
 
     if isinstance(inventory_data, dict):
@@ -205,12 +211,12 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
       inventory_by_date[date_str] = []
 
     output_file = write_inventory_file(output_dir, date, inventory_data)
-    logger.info(f'{path_relative_to_cwd(output_file)}: {len(inventory_by_date[date_str])} stations')
+    logger.debug(f'  {path_relative_to_cwd(output_file)}: {len(inventory_by_date[date_str])} stations')
 
   return inventory_by_date
 
 
-def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
+def _get_inventory(start):
 
   from urllib.parse import urlencode
   from .util import get
@@ -223,7 +229,7 @@ def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
     })
   url = f'{CONFIG['inventory']['base_url']}?{query}'
 
-  response, error = get(url, timeout=timeout)
+  response, error = get(url, timeout=CONFIG['inventory']['timeout'])
 
   if error is not None:
     logger.error(f"  Error fetching inventory for {start}: {error}")
@@ -232,13 +238,13 @@ def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
   return response
 
 
-def _get_station_info(cafile=None, timeout=None):
+def _get_station_info(cafile=None):
 
   from .util import get
   from .config import config
 
   station_info_url = config('inventory')['station_info_url']
-  station_info, error = get(station_info_url, format='json', cafile=cafile, timeout=timeout)
+  station_info, error = get(station_info_url, format='json', cafile=cafile, timeout=CONFIG['inventory']['timeout'])
 
   # Convert list of station info to dictionary keyed by station ID
   station_info = {item['id']: item for item in station_info}
@@ -271,15 +277,18 @@ def _print_summary(inventory):
 
 
     logger.info("  station:")
+    if 'station' not in entry:
+      logger.warning("  Warning: station information is missing")
+      continue
     for key in entry['station']:
       logger.info(f"    {key}: {entry['station'][key]}")
 
-
     logger.info("  location:")
-    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
     if entry.get('location', None) is None:
       logger.warning("  Warning: location information is missing")
-    elif geo_location_changed is False:
+      continue
+    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
+    if geo_location_changed is True:
       logger.warning("  Warning: geographic location changed")
     elif geo_location_changed is None:
       logger.warning("  Warning: could not determine if geographic location changed")
@@ -306,6 +315,28 @@ def _date_range(start, stop, format='datetime'):
     current += dt.timedelta(days=1)
 
   return dates
+
+
+def _write_combined_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
+
+  import pathlib
+  from .util import write_json_and_archive
+
+  output_dir = pathlib.Path(output_dir)
+
+  output_dir.mkdir(parents=True, exist_ok=True)
+  if station_id is None:
+    if partial_inventory:
+      inventory_file = output_dir / 'inventory' / 'partial' / f'inventory-{start}-{stop}.json'
+      archive_path = None
+    else:
+      inventory_file = output_dir / 'inventory' / 'inventory.json'
+      archive_path = output_dir / 'inventory' / 'archive'
+  else:
+    inventory_file = output_dir / 'inventory'/ 'partial' / f'inventory-{station_id}.json'
+    archive_path = None
+
+  write_json_and_archive(inventory, inventory_file, archive_path)
 
 
 if __name__ == '__main__':

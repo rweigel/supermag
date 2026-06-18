@@ -12,16 +12,14 @@ def indices(userid, start, extent,
             cache=True,
             ignore_cache=False,
             cache_dir=CONFIG['common']['output_dir'],
-            cafile=None,
-            timeout=30):
+            cafile=None):
 
   return data(userid, 'indices', start, extent,
               format=format,
               cache=cache,
               ignore_cache=ignore_cache,
               cache_dir=cache_dir,
-              cafile=cafile,
-              timeout=timeout)
+              cafile=cafile)
 
 
 def data(userid, stationid, start, extent,
@@ -32,8 +30,7 @@ def data(userid, stationid, start, extent,
           cache=True,
           ignore_cache=False,
           cache_dir=CONFIG['common']['output_dir'],
-          cafile=None,
-          timeout=30):
+          cafile=None):
 
   _locals = locals()
   logger.debug("data() called with arguments:")
@@ -106,7 +103,7 @@ def data(userid, stationid, start, extent,
     url = CONFIG['data']['base_url_data']
     url += f"&{common_params}&station={stationid}&{options}"
 
-  data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile, timeout=timeout)
+  data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile)
   if error is not None:
     return None, error
 
@@ -121,10 +118,10 @@ def data(userid, stationid, start, extent,
   return _reformat(data_json, format=format), None
 
 
-def _get_and_parse(url, stationid, format='json', cafile=None, timeout=30):
+def _get_and_parse(url, stationid, format='json', cafile=None):
   from .util import get
   try:
-    data_json, error = get(url, cafile=cafile, format='json', timeout=timeout)
+    data_json, error = get(url, cafile=cafile, format='json', timeout=CONFIG['data']['timeout'])
     if error is not None:
       logger.debug(error)
       return None, {'url': url, 'error': error}

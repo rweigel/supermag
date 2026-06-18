@@ -76,45 +76,68 @@ def _parse_response(response, format=None):
   return data_json, None
 
 
-def write_combined_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
-
+def write_json_and_archive(data, file_path, archive_dir=None):
   import json
   import gzip
   import pathlib
+
   import datetime as dt
+
+  timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
   from .util import path_relative_to_cwd
 
-  output_dir = pathlib.Path(output_dir)
+  file_path = pathlib.Path(file_path)
+  if archive_dir is not None:
+    archive_dir = pathlib.Path(archive_dir)
 
-  output_dir.mkdir(parents=True, exist_ok=True)
-  timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-  if station_id is None:
-    if partial_inventory:
-      inventory_file = output_dir / 'partial' / f'inventory-{start}-{stop}.json'
-      archive_file = None
-    else:
-      inventory_file = output_dir / 'inventory.json'
-      archive_file = output_dir / 'archive' / f'inventory-{timestamp}.json.gz'
-      archive_file.parent.mkdir(parents=True, exist_ok=True)
-  else:
-    inventory_file = output_dir / 'partial' / f'inventory-{station_id}.json'
-    archive_file = None
+  file_path.parent.mkdir(parents=True, exist_ok=True)
+  if archive_dir is not None:
+    archive_dir.mkdir(parents=True, exist_ok=True)
 
-  inventory_file.parent.mkdir(parents=True, exist_ok=True)
-
-  logger.info(f'Writing {path_relative_to_cwd(inventory_file)} with {len(inventory)} stations')
-  with inventory_file.open('w') as stream:
-    json.dump(inventory, stream, indent=2)
+  logger.info(f'Writing {path_relative_to_cwd(file_path)} with {len(data)} entries')
+  with file_path.open('w') as stream:
+    json.dump(data, stream, indent=2)
     stream.write('\n')
 
-  if archive_file is None:
+  if archive_dir is None:
     return
 
-  logger.info(f'Writing {path_relative_to_cwd(archive_file)} with {len(inventory)} stations')
-  with gzip.open(archive_file, 'wt') as stream:
-    json.dump(inventory, stream, indent=2)
+  archive_path = pathlib.Path(archive_dir) / f'{file_path.stem}-{timestamp}.json.gz'
+  logger.info(f'Writing {path_relative_to_cwd(archive_path)}')
+  with gzip.open(archive_path, 'wt') as stream:
+    json.dump(data, stream, indent=2)
     stream.write('\n')
+
+
+def move_log_files(log_files, dst_dir, archive=False):
+    import gzip
+    import shutil
+    import pathlib
+    import datetime
+
+    for log_file in log_files:
+      src = pathlib.Path(log_file)
+      if src.exists():
+        # Move log file to the output directory
+        dst = pathlib.Path(dst_dir) / log_file
+        logger.info(f"Moving {src} to {dst}")
+        shutil.move(str(src), str(dst))
+
+        if not archive:
+          continue
+
+        # Copy dst to archive and rename to dst-{timestamp}.log
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H:%M:%SZ")
+        archive_dst = pathlib.Path(dst_dir) / 'archive' / f"{pathlib.Path(log_file).stem}-{timestamp}.log"
+        logger.info(f"Copying {dst} to {archive_dst}")
+        shutil.copy2(str(dst), str(archive_dst))
+        archive_dst.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(archive_dst, 'rb') as f_in:
+          with gzip.open(f"{archive_dst}.gz", 'wb') as f_out:
+            f_out.writelines(f_in)
+        archive_dst.unlink()
 
 
 def parse_timestamp(timestamp):

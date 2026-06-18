@@ -199,10 +199,11 @@ def _print_location_info(station_id, location_start, location_stop, start_isodat
   start_msg = f"  Start {start_isodate}: {location_start}"
   stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
   differ = _locations_differ(location_start, location_stop)
-  if differ:
-    logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
-  elif differ is None:
-    logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
+  if differ or differ is None:
+    if differ:
+      logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
+    else:
+      logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
     logger.warning(f"  {start_msg}")
     logger.warning(f"  {stop_msg}")
   else:

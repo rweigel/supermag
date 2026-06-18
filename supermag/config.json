@@ -10,7 +10,8 @@
     "station_info_url": "https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json"
   },
   "data": {
-    "_comment": "We always request all extra parameters. Note: mlt => response includes mlt, and mcolat. All others are single.",
+    "timeout": 5,
+    "_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
     "extra_parameters": ["mlt", "geo", "decl", "sza"],
     "base_url_indices": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
     "base_url_data": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead"

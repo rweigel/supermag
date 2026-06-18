@@ -1,5 +1,4 @@
 # pytest test_data.py --userid USERID
-
 from datetime import datetime
 
 import supermag
@@ -57,14 +56,14 @@ def test_options():
   tests = [
     {
       'comment': "On table page, 'Subtract Baseline' selected and 'Subtract start value' unchecked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=all&mlt&decl&sza&glat&glon',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=all&mlt&geo&decl&sza',
       'options': {'extent': 60, 'baseline': 'all', 'delta': 'none'},
       'expected': [{"tval":978307200.000000, "ext": 60.000000, "iaga": "ABK", 'glon': 18.82, 'glat': 68.349998, "mlt": 1.617976, "mcolat": 24.785370, "decl": 5.068689, "sza": 133.343750, "N": {"nez": -0.798087, "geo": -0.622084}, "E": {"nez": -1.956784, "geo": -2.019643}, "Z": {"nez": 3.239859, "geo": 3.239859}}]
     },
     {
       'comment': "On table page, 'Subtract Baseline' selected and 'Subtract start value' checked",
       'table': '',
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=all&mlt&decl&sza&glat&glon',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=all&mlt&geo&decl&sza',
       'options': {'extent': 120, 'baseline': 'all', 'delta': 'start'},
       'expected':
         [
@@ -75,13 +74,13 @@ def test_options():
 
     {
       'comment': "On table page, 'Do Not Remove Daily Baseline' selected and 'Subtract start value' unchecked",
-      'url': "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=yearly&mlt&decl&sza&glat&glon",
+      'url': "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=yearly&mlt&geo&decl&sza",
       'options': {'extent': 60, 'baseline': 'yearly', 'delta': 'none'},
       'expected': [{"tval":978307200.000000, "ext": 60.000000, "iaga": "ABK", 'glon': 18.82, 'glat': 68.349998, "mlt": 1.617976, "mcolat": 24.785370, "decl": 5.068689, "sza": 133.343750, "N": {"nez": -2.192383, "geo": -2.187099}, "E": {"nez": 0.037229, "geo": -0.156614}, "Z": {"nez": -1.468750, "geo": -1.468750}}]
     },
     {
       'comment': "On table page, 'Do Not Remove Daily Baseline' selected and 'Subtract start value' checked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=yearly&mlt&decl&sza&glat&glon',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=yearly&mlt&geo&decl&sza',
       'options': {'extent': 120, 'baseline': 'yearly', 'delta': 'start'},
       'expected':
         [
