@@ -140,13 +140,11 @@ def parse_data_args():
 def parse_inventory_args():
   import sys
   import argparse
-  import datetime as dt
 
   from pathlib import Path
 
-  default_start = '1970-01-01'
-  tomorrow = dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
-  default_stop  = (tomorrow).isoformat()
+  from .util import data_range
+  default_start, default_stop = data_range()
 
   epilog = """
   Examples:
@@ -158,7 +156,7 @@ def parse_inventory_args():
   """
 
   description = """
-  Fetch daily SuperMAG inventories from 1970-01-01 through tomorrow and create inventory.json file with list of available dates for each station.
+  Fetch daily SuperMAG inventories from 1970-01-01 through tomorrow (UTC) and create inventory.json file with list of available dates for each station.
 
   If --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial
   """
@@ -226,8 +224,6 @@ def parse_inventory_args():
   args = parser.parse_args()
 
   check_userid(args.userid)
-
-  args.partial_inventory = '--start' in sys.argv[1:] or '--stop' in sys.argv[1:]
 
   return args
 
@@ -383,7 +379,6 @@ def main_inventory():
     'update_inventory': args.update_inventory,
     'update_locations': args.update_locations,
     'station_id': args.station_id,
-    'partial_inventory': args.partial_inventory,
     'timeout': args.timeout,
     'delay': args.delay,
   }

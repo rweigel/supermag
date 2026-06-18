@@ -11,16 +11,22 @@ CONFIG = config()
 def locations(userid,
               output_dir=CONFIG['common']['output_dir'],
               update=False,
-              station_id=None):
+              station_id=None,
+              inventory=None):
+
+  import pathlib
+  output_dir = pathlib.Path(output_dir)
 
   locations_file = output_dir / 'inventory' / 'locations.json'
 
   # Read existing locations from file if it exists
   locations_existing = _read_locations(locations_file)
 
-  inventory = _read_inventory(output_dir, station_id=station_id)
+  inventory_data = inventory
+  if inventory_data is None:
+    inventory_data = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update)
+  locations_new = _fetch_locations(userid, inventory_data, output_dir, locations_existing, update)
 
   # Merge new locations with existing locations
   if station_id is None:
@@ -32,12 +38,13 @@ def locations(userid,
   # Print missing locations to console
   missing_locations = [
     sid for sid, loc in locations_existing.items()
-    if not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {}))
+    if not isinstance(loc, dict) or (not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {})))
   ]
   if missing_locations:
-    logger.error(f'Missing locations for {len(missing_locations)} stations:')
     for sid in missing_locations:
-      logger.error(f'  Station ID: {sid}')
+      if station_id is not None and sid != station_id:
+        continue
+      logger.error(f'{sid}: Missing location')
 
   # Write updated locations to file
   _write_locations(locations_existing, locations_file)
@@ -83,10 +90,10 @@ def _fetch_locations(userid,
     location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
     location_stop, error_stop = _fetch_location(userid, station_id, stop_isodate, "last", update=update)
 
-    _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
-
-    location_start = _location_record(stop_isodate, location_start, error_start)
+    location_start = _location_record(start_isodate, location_start, error_start)
     location_stop = _location_record(stop_isodate, location_stop, error_stop)
+
+    _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
 
     if _has_location(location_start) or _has_location(location_stop):
       locations[station_id] = {
@@ -141,7 +148,7 @@ def _fetch_location(userid,
 
 
 def _has_location(location_record):
-  if location_record is None:
+  if location_record is None or not isinstance(location_record, dict):
     return False
   a = location_record.get('glat', None) is not None
   b = location_record.get('glon', None) is not None

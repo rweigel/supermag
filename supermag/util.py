@@ -1,7 +1,7 @@
 import utilrsw
 logger = utilrsw.logger(
   color=True,
-  console_format='%(name)s %(levelname)s : %(message)s')
+  console_format='%(name)s %(levelname)s: %(message)s')
 
 
 def get(url, format='json', cafile=None, timeout=30):
@@ -75,6 +75,31 @@ def _parse_response(response, format=None):
     return None, error
 
   return data_json, None
+
+
+def parse_timestamp(timestamp):
+  """Parse an common ISO6801 string to a Unix timestamp."""
+  from datetime import datetime, timezone
+  timestamp_str = str(timestamp).rstrip('Z').replace(' ', 'T')
+  fmts = ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H', '%Y-%m-%d')
+  for fmt in fmts:
+    try:
+      return datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+      pass
+    try:
+      return datetime.strptime(timestamp_str, fmt + "Z").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+      continue
+  raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
+
+
+def data_range():
+  start_data = '1970-01-01'
+  import datetime as dt
+  tomorrow = dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
+  stop_data  = (tomorrow).isoformat()
+  return start_data, stop_data
 
 
 def path_relative_to_cwd(path):

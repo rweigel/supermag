@@ -9,14 +9,37 @@ from .config import config
 CONFIG = config()
 
 
-def inventory(userid, start, stop,
+def inventory(userid,
+              start=None,
+              stop=None,
               output_dir=CONFIG['common']['output_dir'],
               update_inventory=False,
               update_locations=False,
               station_id=None,
-              partial_inventory=False,
               timeout=CONFIG['inventory']['timeout'],
               delay=CONFIG['inventory']['delay']):
+
+  import pathlib
+  output_dir = pathlib.Path(output_dir)
+
+  from .util import data_range
+  start_data, stop_data = data_range()
+  if start is None:
+    start = start_data
+  if stop is None:
+    stop = stop_data
+
+  from .util import parse_timestamp
+  start_dt = parse_timestamp(start)
+  stop_dt = parse_timestamp(stop)
+  if stop_dt <= start_dt:
+    raise ValueError(f"Stop time must be after start time. Got start={start}, stop={stop}")
+
+  partial_inventory = False
+  if start_dt > parse_timestamp(start_data):
+    partial_inventory = True
+  if stop_dt < parse_timestamp(stop_data):
+    partial_inventory = True
 
   kwargs = {
     'output_dir': output_dir,
@@ -61,13 +84,19 @@ def inventory(userid, start, stop,
   if station_id is not None:
     inventory = [entry for entry in inventory if entry['id'] == station_id]
     if not inventory:
-      raise ValueError(f"Station ID not found in combined inventory: {station_id}")
+      logger.info(f"{station_id} not found in inventory from {start} through {stop}")
+      return []
+      #raise ValueError(f"Station ID not found in combined inventory: {station_id}")
     logger.info(f'Filtered inventory to station {station_id}')
 
 
   logger.info("Getting geographic locations for each station")
   from .locations import locations
-  geo_locations = locations(userid, output_dir=output_dir, update=update_locations, station_id=station_id)
+  geo_locations = locations(userid,
+                            output_dir=output_dir,
+                            update=update_locations,
+                            station_id=station_id,
+                            inventory=inventory)
 
   logger.info("Adding geographic locations to inventory entries")
 
@@ -106,7 +135,11 @@ def inventory(userid, start, stop,
 def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], update=False, timeout=CONFIG['inventory']['timeout'], delay=CONFIG['inventory']['delay']):
 
   import time
+  import pathlib
+
   from .util import path_relative_to_cwd
+
+  output_dir = pathlib.Path(output_dir)
 
   def parse_date(value):
     import datetime as dt
@@ -117,8 +150,8 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
 
   def write_inventory_file(output_dir, start, payload):
     import json
-    output_dir.mkdir(parents=True, exist_ok=True)
     output_file = inventory_file_path(output_dir, start)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(json.dumps(payload, indent=2) + '\n')
     return output_file
 
@@ -190,9 +223,12 @@ def _write_files(inventory, output_dir, start, stop, station_id=None, partial_in
 
   import json
   import gzip
+  import pathlib
   import datetime as dt
 
   from .util import path_relative_to_cwd
+
+  output_dir = pathlib.Path(output_dir)
 
   output_dir.mkdir(parents=True, exist_ok=True)
   timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')

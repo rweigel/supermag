@@ -150,30 +150,14 @@ def _get_and_parse(url, stationid, format='json', cafile=None, timeout=30):
 
 
 def _stop_to_extent(start, extent):
+  from .util import parse_timestamp
   if isinstance(extent, str):
-    start_ts = _parse_timestamp(start)
-    stop_ts = _parse_timestamp(extent)
+    start_ts = parse_timestamp(start)
+    stop_ts = parse_timestamp(extent)
     if stop_ts <= start_ts:
       raise ValueError(f"Stop time must be after start time. Got start={start} ({start_ts}), stop={extent} ({stop_ts})")
     extent = int(stop_ts - start_ts)
   return extent
-
-
-def _parse_timestamp(timestamp):
-  """Parse an common ISO6801 string to a Unix timestamp."""
-  from datetime import datetime, timezone
-  timestamp_str = str(timestamp).rstrip('Z').replace(' ', 'T')
-  fmts = ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H', '%Y-%m-%d')
-  for fmt in fmts:
-    try:
-      return datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc).timestamp()
-    except ValueError:
-      pass
-    try:
-      return datetime.strptime(timestamp_str, fmt + "Z").replace(tzinfo=timezone.utc).timestamp()
-    except ValueError:
-      continue
-  raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
 
 
 def _reformat(data_json, format='json'):
@@ -239,7 +223,7 @@ def _subset(data, start, extent):
 
   Accepts either a list of dicts (JSON records) or a pandas DataFrame.
   """
-
+  from .util import parse_timestamp
 
   try:
     import pandas
@@ -247,7 +231,7 @@ def _subset(data, start, extent):
   except ImportError:
     is_df = False
 
-  start_ts = _parse_timestamp(start)
+  start_ts = parse_timestamp(start)
   stop_ts = start_ts + extent if extent is not None else None
 
   if is_df:

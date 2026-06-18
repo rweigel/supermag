@@ -1,3 +1,5 @@
+# pytest test_data.py --userid USERID
+
 from datetime import datetime
 
 import supermag
@@ -5,6 +7,12 @@ from util import userid, check_output, check_equivalent
 
 # Change to True after this script is complete.
 ignore_cache = True
+
+"""
+TODO:
+  * Test cache options
+  * Test cafile option
+"""
 
 def test_default():
 
@@ -146,13 +154,3 @@ def test_one_and_half_day_request():
   check_output(data, n_records=n_records, output_file="response for multi-day request")
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
 
-
-if __name__ == '__main__':
-  test_default()
-  test_start()
-  test_extent_is_stop()
-  test_format()
-  test_options()
-  test_full_day_request()
-  test_half_day_request()
-  test_one_and_half_day_request()
