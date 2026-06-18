@@ -10,7 +10,7 @@ def pytest_addoption(parser):
     '--userid',
     action='store',
     default=None,
-    help='SuperMAG user ID for integration tests. Can also be set with SUPERMAG_USERID.',
+    help='SuperMAG user ID for integration tests.',
   )
 
 
@@ -18,6 +18,6 @@ def pytest_configure(config):
   userid = config.getoption('--userid') or os.environ.get('SUPERMAG_USERID')
   if not userid:
     raise pytest.UsageError(
-      'Missing SuperMAG user ID. Pass --userid USERID or set SUPERMAG_USERID.'
+      'Missing SuperMAG user ID. Pass --userid USERID.'
     )
   util.userid = userid
