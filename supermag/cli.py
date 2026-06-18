@@ -138,7 +138,6 @@ def parse_data_args():
 
 
 def parse_inventory_args():
-  import sys
   import argparse
 
   from pathlib import Path
@@ -149,10 +148,11 @@ def parse_inventory_args():
   epilog = """
   Examples:
     Full run:
-      supermag-inventory
+      supermag-inventory --userid USERID
     Short tests:
-      supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory
-      supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations
+      supermag-inventory --userid USERID --start 1970-01-01 --stop 1970-01-10
+      supermag-inventory --userid USERID --start 1970-01-01 --stop 1970-01-10 --update-inventory
+      supermag-inventory --userid USERID --start 1970-01-01 --stop 1970-01-10 --update-inventory --update-locations
   """
 
   description = """

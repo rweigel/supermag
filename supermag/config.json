@@ -5,7 +5,9 @@
   "inventory": {
     "delay": 0.0,
     "timeout": 5,
-    "base_url": "https://supermag.jhuapl.edu/lib/services/inventory.php"
+    "geo_location_change_threshold": 0.0001,
+    "base_url": "https://supermag.jhuapl.edu/lib/services/inventory.php",
+    "station_info_url": "https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json"
   },
   "data": {
     "_comment": "We always request all extra parameters. Note: mlt => response includes mlt, and mcolat. All others are single.",

@@ -22,7 +22,6 @@ def get(url, format='json', cafile=None, timeout=30):
     logger.debug(f"  Using CA certificates from: {pool_kwargs['ca_certs']}")
 
   try:
-    logger.debug("  Getting response using urllib3.PoolManager().request('GET', url)")
     http = urllib3.PoolManager(**pool_kwargs)
     response = http.request('GET', url, timeout=timeout)
   except Exception as error:
@@ -75,6 +74,47 @@ def _parse_response(response, format=None):
     return None, error
 
   return data_json, None
+
+
+def write_combined_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
+
+  import json
+  import gzip
+  import pathlib
+  import datetime as dt
+
+  from .util import path_relative_to_cwd
+
+  output_dir = pathlib.Path(output_dir)
+
+  output_dir.mkdir(parents=True, exist_ok=True)
+  timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+  if station_id is None:
+    if partial_inventory:
+      inventory_file = output_dir / 'partial' / f'inventory-{start}-{stop}.json'
+      archive_file = None
+    else:
+      inventory_file = output_dir / 'inventory.json'
+      archive_file = output_dir / 'archive' / f'inventory-{timestamp}.json.gz'
+      archive_file.parent.mkdir(parents=True, exist_ok=True)
+  else:
+    inventory_file = output_dir / 'partial' / f'inventory-{station_id}.json'
+    archive_file = None
+
+  inventory_file.parent.mkdir(parents=True, exist_ok=True)
+
+  logger.info(f'Writing {path_relative_to_cwd(inventory_file)} with {len(inventory)} stations')
+  with inventory_file.open('w') as stream:
+    json.dump(inventory, stream, indent=2)
+    stream.write('\n')
+
+  if archive_file is None:
+    return
+
+  logger.info(f'Writing {path_relative_to_cwd(archive_file)} with {len(inventory)} stations')
+  with gzip.open(archive_file, 'wt') as stream:
+    json.dump(inventory, stream, indent=2)
+    stream.write('\n')
 
 
 def parse_timestamp(timestamp):

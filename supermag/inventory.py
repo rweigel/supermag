@@ -16,6 +16,7 @@ def inventory(userid,
               update_inventory=False,
               update_locations=False,
               station_id=None,
+              cafile=None,
               timeout=CONFIG['inventory']['timeout'],
               delay=CONFIG['inventory']['delay']):
 
@@ -50,10 +51,9 @@ def inventory(userid,
   inventories = get_inventories(start, stop, **kwargs)
 
   station_availability = {}
-  logger.info(f'Parsing {len(inventories)} inventories')
+  logger.info(f'Converting {len(inventories)} by day to inventories by station ID')
   for inventory_date, station_ids in inventories.items():
     s = '' if len(station_ids) == 1 else 's'
-    logger.debug(f'  Found {len(station_ids)} station{s} on {inventory_date}')
     for sid in station_ids:
       if sid not in station_availability:
         station_availability[sid] = []
@@ -61,7 +61,7 @@ def inventory(userid,
 
 
   s = '' if len(station_availability) == 1 else 's'
-  logger.info(f'Creating combined inventory with {len(station_availability)} station{s}')
+  logger.info(f'Adding {start,stop}Date and availability info to inventories by station ID for {len(station_availability)} station{s}')
   inventory = []
   for inventory_station_id, available_dates in station_availability.items():
     available_dates = sorted(available_dates)
@@ -69,15 +69,15 @@ def inventory(userid,
         'id': inventory_station_id,
         'startDate': available_dates[0],
         'stopDate': available_dates[-1],
-        'available_percent': 100.0
+        'availability': {'available_percent': 100.0}
       }
 
     all_dates = _date_range(available_dates[0], available_dates[-1], format='str')
     n_days = len(all_dates)
     if len(all_dates) != len(available_dates):
-      entry['available'] = available_dates
-      entry['available_percent'] = 100 * len(available_dates) / len(all_dates)
-      entry['unavailable'] = sorted(set(all_dates) - set(available_dates))
+      entry['availability']['available'] = available_dates
+      entry['availability']['available_percent'] = 100 * len(available_dates) / len(all_dates)
+      entry['availability']['unavailable'] = sorted(set(all_dates) - set(available_dates))
 
     inventory.append(entry)
 
@@ -86,29 +86,50 @@ def inventory(userid,
     if not inventory:
       logger.info(f"{station_id} not found in inventory from {start} through {stop}")
       return []
-      #raise ValueError(f"Station ID not found in combined inventory: {station_id}")
     logger.info(f'Filtered inventory to station {station_id}')
 
 
-  logger.info("Getting geographic locations for each station")
-  from .locations import locations
-  geo_locations = locations(userid,
-                            output_dir=output_dir,
-                            update=update_locations,
-                            station_id=station_id,
-                            inventory=inventory)
+  if update_locations:
+    logger.info("Getting geographic locations for each station (using cached data, if available)")
+  else:
+    logger.info("Getting geographic locations for each station")
+
+  if True:
+    from .locations import locations
+    geo_locations = locations(userid,
+                              output_dir=output_dir,
+                              update=update_locations,
+                              station_id=station_id,
+                              inventory=inventory)
+
+
+  station_info = _station_info()
 
   logger.info("Adding geographic locations to inventory entries")
 
-  logger.info("Inventory summary")
   for entry in inventory:
     if entry['id'] in geo_locations:
       entry['location'] = geo_locations[entry['id']]
+    if entry['id'] in station_info:
+      entry['station'] = station_info[entry['id']]
+
+  logger.info("Inventory summary")
+  for entry in inventory:
     logger.info(f"{entry['id']}: ")
     logger.info(f"  startDate: {entry['startDate']}")
     logger.info(f"  stopDate:  {entry['stopDate']}")
-    logger.info(f"  Unavailable: {len(entry.get('unavailable', []))}/{n_days} ({100-entry['available_percent']:.1f}%)")
 
+    availability = entry.get('availability', {})
+    unavailable = f"{len(availability.get('unavailable', []))}/{n_days}"
+    unavailable += f" ({100-availability['available_percent']:.1f}%)"
+    logger.info(f"  unavailable: {unavailable}")
+
+    logger.info("  station:")
+    for key in entry['station']:
+      logger.info(f"    {key}: {entry['station'][key]}")
+
+
+    logger.info("  location:")
     geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
     if entry.get('location', None) is None:
       logger.warning("  Warning: location information is missing")
@@ -116,8 +137,9 @@ def inventory(userid,
       logger.warning("  Warning: geographic location changed")
     elif geo_location_changed is None:
       logger.warning("  Warning: could not determine if geographic location changed")
-    logger.info(f"  Start location: {entry['location']['start']}")
-    logger.info(f"  Stop location:  {entry['location']['stop']}")
+
+    for key in entry['location']:
+      logger.info(f"    {key}: {entry['location'][key]}")
 
 
   kwargs = {
@@ -127,7 +149,8 @@ def inventory(userid,
     'partial_inventory': partial_inventory
   }
 
-  _write_files(inventory, output_dir, **kwargs)
+  from .util import write_combined_files
+  write_combined_files(inventory, output_dir, **kwargs)
 
   return inventory
 
@@ -139,8 +162,6 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
 
   from .util import path_relative_to_cwd
 
-  output_dir = pathlib.Path(output_dir)
-
   def parse_date(value):
     import datetime as dt
     return dt.datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=dt.timezone.utc)
@@ -148,52 +169,66 @@ def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], upda
   def inventory_file_path(output_dir, start):
     return output_dir / "inventory" / "daily" / f"{start:%Y-%m-%d}.json"
 
-  def write_inventory_file(output_dir, start, payload):
+  def write_inventory_file(output_dir, start, inventory_data):
     import json
     output_file = inventory_file_path(output_dir, start)
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(json.dumps(payload, indent=2) + '\n')
+    output_file.write_text(json.dumps(inventory_data, indent=2) + '\n')
     return output_file
+
+  def read_inventory_file(output_dir, start):
+    import json
+    input_file = inventory_file_path(output_dir, start)
+    if not input_file.exists():
+      return None
+    with input_file.open() as f:
+      return json.load(f)
+
+  output_dir = pathlib.Path(output_dir)
 
   start = parse_date(start)
   stop = parse_date(stop)
   if stop < start:
     raise ValueError('stop must be on or after start')
 
-  inventory_data = {}
+  inventory_by_date = {}
   requested = 0
   data_range = _date_range(start, stop)
   s = '' if len(data_range) == 1 else 's'
   logger.info(f"Getting inventory on {len(data_range)} day{s} from {start:%Y-%m-%d} to {stop:%Y-%m-%d}")
-  for current in data_range:
 
-    file_date = current.strftime('%Y-%m-%d')
-    logger.debug(f"Getting inventory for {file_date}")
+  for date in data_range:
 
-    output_file = inventory_file_path(output_dir, current)
+    date_str = date.strftime('%Y-%m-%d')
+    logger.debug(f"Getting inventory for {date_str}")
 
-    if output_file.exists():
-      if not update:
-        logger.debug(f'  Found cache: {path_relative_to_cwd(output_file)}')
-        with output_file.open() as stream:
-          import json
-          payload = json.load(stream)
-        inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
+    if not update:
+      output_file = inventory_file_path(output_dir, date)
+      inventory_data = read_inventory_file(output_dir, date)
+      if inventory_data is not None:
+        n_stations = len(inventory_data['stations']) if isinstance(inventory_data, dict) else 0
+        logger.debug(f'  Cache hit: {path_relative_to_cwd(output_file)}: {n_stations} stations')
+        if isinstance(inventory_data, dict):
+          inventory_by_date[date_str] = inventory_data['stations']
+        else:
+          inventory_by_date[date_str] = []
         continue
-      else:
-        logger.debug(f'  Updating existing: {path_relative_to_cwd(output_file)}')
 
     if requested > 0 and delay > 0:
       time.sleep(delay)
 
-    payload = _get_inventory(current, timeout=timeout)
+    inventory_data = _get_inventory(date, timeout=timeout)
     requested += 1
-    stations = payload.get('stations', []) if isinstance(payload, dict) else []
-    output_file = write_inventory_file(output_dir, current, payload)
-    logger.info(f'  {path_relative_to_cwd(output_file)}: {len(stations)} stations')
-    inventory_data[file_date] = payload['stations'] if isinstance(payload, dict) else []
 
-  return inventory_data
+    if isinstance(inventory_data, dict):
+      inventory_by_date[date_str] = inventory_data.get('stations', [])
+    else:
+      inventory_by_date[date_str] = []
+
+    output_file = write_inventory_file(output_dir, date, inventory_data)
+    logger.info(f'{path_relative_to_cwd(output_file)}: {len(inventory_by_date[date_str])} stations')
+
+  return inventory_by_date
 
 
 def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
@@ -209,7 +244,6 @@ def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
     })
   url = f'{CONFIG['inventory']['base_url']}?{query}'
 
-  logger.debug(f"  Fetching {url}")
   response, error = get(url, timeout=timeout)
 
   if error is not None:
@@ -219,45 +253,26 @@ def _get_inventory(start, timeout=CONFIG['inventory']['timeout']):
   return response
 
 
-def _write_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
+def _station_info(cafile=None, timeout=None):
 
-  import json
-  import gzip
-  import pathlib
-  import datetime as dt
+  from .util import get
+  from .config import config
 
-  from .util import path_relative_to_cwd
+  station_info_url = config('inventory')['station_info_url']
+  station_info, error = get(station_info_url, format='json', cafile=cafile, timeout=timeout)
 
-  output_dir = pathlib.Path(output_dir)
+  # Convert list of station info to dictionary keyed by station ID
+  station_info = {item['id']: item for item in station_info}
+  for item in station_info.values():
+    # Delete id key from station_info entries
+    item.pop('id', None)
+    # Rename geolat to glat to be consistent with what is used in data response columns.
+    if 'geolat' in item:
+      item['glat'] = item.pop('geolat')
+    if 'geolon' in item:
+      item['glon'] = item.pop('geolon')
 
-  output_dir.mkdir(parents=True, exist_ok=True)
-  timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-  if station_id is None:
-    if partial_inventory:
-      inventory_file = output_dir / 'partial' / f'inventory-{start}-{stop}.json'
-      archive_file = None
-    else:
-      inventory_file = output_dir / 'inventory.json'
-      archive_file = output_dir / 'archive' / f'inventory-{timestamp}.json.gz'
-      archive_file.parent.mkdir(parents=True, exist_ok=True)
-  else:
-    inventory_file = output_dir / 'partial' / f'inventory-{station_id}.json'
-    archive_file = None
-
-  inventory_file.parent.mkdir(parents=True, exist_ok=True)
-
-  logger.info(f'Writing {path_relative_to_cwd(inventory_file)} with {len(inventory)} stations')
-  with inventory_file.open('w') as stream:
-    json.dump(inventory, stream, indent=2)
-    stream.write('\n')
-
-  if archive_file is None:
-    return
-
-  logger.info(f'Writing {path_relative_to_cwd(archive_file)} with {len(inventory)} stations')
-  with gzip.open(archive_file, 'wt') as stream:
-    json.dump(inventory, stream, indent=2)
-    stream.write('\n')
+  return station_info
 
 
 def _date_range(start, stop, format='datetime'):

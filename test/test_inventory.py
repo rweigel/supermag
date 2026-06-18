@@ -1,13 +1,10 @@
-# pytest test_inventory.py --userid USERID
+# python test_inventory.py USERID
 
 import supermag
 from util import userid
 
-# Change these to True when this test script complete
-update_inventory = False
-update_locations = False
 
-def test_simple(userid=userid):
+def test_short(userid=userid):
   kwargs = {
     'start': '1970-01-01',
     'stop': '1970-01-10',
@@ -16,17 +13,62 @@ def test_simple(userid=userid):
   }
 
   inventory = supermag.inventory(userid, **kwargs)
+
   assert inventory is not None, "Expected inventory to be non-None"
   assert isinstance(inventory, list), "Expected inventory to be a list"
   assert len(inventory) > 0, "Expected inventory to have at least one item"
   found = False
   for item in inventory:
     assert isinstance(item, dict), "Expected each inventory item to be a dictionary"
-    for keys in ['id', 'startDate', 'stopDate', 'available_percent', 'location']:
+    for keys in ['id', 'startDate', 'stopDate', 'station', 'availability', 'location']:
       assert keys in item, f"Expected each inventory item to have a '{keys}' key"
     if item['id'] == 'DRV':
       found = True
   assert found, "Expected to find an inventory item with id 'DRV'"
 
+  print("\n")
+
+  kwargs = {
+    'start': '1970-01-01',
+    'stop': '1970-01-10',
+    'update_inventory': False,
+    'update_locations': False
+  }
+
+  inventory_cached = supermag.inventory(userid, **kwargs)
+  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+
+  print("\n")
+
+  kwargs = {
+    'start': '1970-01-01',
+    'stop': '1970-01-10',
+    'update_inventory': True,
+    'update_locations': False
+  }
+
+  inventory_cached = supermag.inventory(userid, **kwargs)
+  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+
+  kwargs = {
+    'start': '1970-01-01',
+    'stop': '1970-01-10',
+    'update_inventory': False,
+    'update_locations': True
+  }
+
+  inventory_cached = supermag.inventory(userid, **kwargs)
+  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+
+
 if __name__ == "__main__":
-  test_simple(userid='superhapi')
+  import sys
+  from supermag.util import logger
+
+  logger.setLevel('DEBUG')
+
+  args = sys.argv
+  if len(args) == 2:
+    test_short(userid=args[1])
+  else:
+    print("Usage: python test_locations.py USERID")

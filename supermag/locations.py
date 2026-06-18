@@ -14,6 +14,7 @@ def locations(userid,
               station_id=None,
               inventory=None):
 
+
   import pathlib
   output_dir = pathlib.Path(output_dir)
 
@@ -22,11 +23,10 @@ def locations(userid,
   # Read existing locations from file if it exists
   locations_existing = _read_locations(locations_file)
 
-  inventory_data = inventory
-  if inventory_data is None:
-    inventory_data = _read_inventory(output_dir, station_id=station_id)
+  if inventory is None:
+    inventory = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory_data, output_dir, locations_existing, update)
+  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update)
 
   # Merge new locations with existing locations
   if station_id is None:
@@ -34,17 +34,6 @@ def locations(userid,
   else:
     logger.debug(f"Replacing existing location for {station_id} with possibly updated location.")
   locations_existing.update(locations_new)
-
-  # Print missing locations to console
-  missing_locations = [
-    sid for sid, loc in locations_existing.items()
-    if not isinstance(loc, dict) or (not _has_location(loc.get('start', {})) and not _has_location(loc.get('stop', {})))
-  ]
-  if missing_locations:
-    for sid in missing_locations:
-      if station_id is not None and sid != station_id:
-        continue
-      logger.error(f'{sid}: Missing location')
 
   # Write updated locations to file
   _write_locations(locations_existing, locations_file)
@@ -62,6 +51,9 @@ def _fetch_locations(userid,
                     update=False):
 
   import copy
+
+  from .config import config
+  location_change_threshold = config('inventory')['geo_location_change_threshold']
 
   existing_locations = existing_locations or {}
   existing_locations = copy.deepcopy(existing_locations)
@@ -84,7 +76,9 @@ def _fetch_locations(userid,
         locations[station_id] = existing_location
         # The following is not needed in general, but is here in case the location
         # match logic is changed in the future.
-        locations[station_id]['geo_location_changed'] = _locations_match(location_start, location_stop)
+        changed = _locations_differ(location_start, location_stop, location_change_threshold)
+        locations[station_id]['geo_location_changed'] = changed
+        locations[station_id]['geo_location_changed_note'] = _locations_differ_note(changed, location_change_threshold)
         continue
 
     location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
@@ -96,8 +90,10 @@ def _fetch_locations(userid,
     _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
 
     if _has_location(location_start) or _has_location(location_stop):
+      changed = _locations_differ(location_start, location_stop, location_change_threshold)
       locations[station_id] = {
-        'geo_location_changed': _locations_match(location_start, location_stop),
+        'geo_location_changed': changed,
+        'geo_location_changed_note': _locations_differ_note(changed, location_change_threshold),
         'start': location_start,
         'stop': location_stop,
       }
@@ -120,6 +116,7 @@ def _fetch_location(userid,
                     update=False):
   from .data import data as data
 
+  logger.debug("")
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
   data, error = data(userid, station_id, isodate, extent, ignore_cache=update)
@@ -158,39 +155,54 @@ def _has_location(location_record):
 def _location_record(isotime, location, error):
   if error is not None:
     return {
-      'datetime': isotime if isotime is not None else '',
+      'date': isotime if isotime is not None else '',
       'glat': None,
       'glon': None,
       'error': error
     }
 
   return {
-    'datetime': isotime,
+    'date': isotime,
     'glat': location[0],
     'glon': location[1]
   }
 
 
-def _locations_match(start_location, stop_location):
+def _locations_differ_note(differ, threshold):
+  if differ is None:
+    return "Location information is missing"
+  if not differ:
+    return "Reported geographic location on start and stop dates match."
+  else:
+    return f"Reported geographic location on start and stop dates differ by more than {threshold} degrees"
+
+def _locations_differ(start_location, stop_location, threshold=None):
   if not _has_location(start_location) or not _has_location(stop_location):
     return None
 
-  return (
-    start_location.get('glat') == stop_location.get('glat')
-    and start_location.get('glon') == stop_location.get('glon')
-  )
+  if threshold is None:
+    return (
+      start_location.get('glat') != stop_location.get('glat')
+      and
+      start_location.get('glon') != stop_location.get('glon')
+    )
+  else:
+    # If locations match within threshold degrees, count as match
+    lat_adiff = abs(start_location.get('glat') - stop_location.get('glat'))
+    lon_adiff = abs(start_location.get('glon') - stop_location.get('glon'))
+    return lat_adiff > threshold or lon_adiff > threshold
 
 
 def _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate):
 
+  logger.debug(station_id)
   start_msg = f"  Start {start_isodate}: {location_start}"
   stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
-  match = _locations_match(location_start, location_stop)
-  if not match:
-    if match is False:
-      logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
-    if match is None:
-      logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
+  differ = _locations_differ(location_start, location_stop)
+  if differ:
+    logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
+  elif differ is None:
+    logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
     logger.warning(f"  {start_msg}")
     logger.warning(f"  {stop_msg}")
   else:
@@ -234,7 +246,7 @@ def _read_locations(output_file):
     logger.debug(f"No existing locations file found at {output_file}, starting with empty locations.")
     return locations
   else:
-    logger.debug(f"Using existing locations from {output_file}")
+    logger.debug(f"Using existing locations from {path_relative_to_cwd(output_file)}")
 
   logger.debug(f"Reading {output_file}")
   with output_file.open() as stream:
