@@ -1,7 +1,6 @@
 """
 Usage:
   supermag-locations --help
-  supermag-locations
 """
 
 from .util import path_relative_to_cwd, logger
@@ -116,7 +115,7 @@ def _fetch_location(userid,
 
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
-  data, error = data(userid, station_id, isodate, extent)
+  data, error = data(userid, station_id, isodate, extent, ignore_cache=update)
 
   if error is not None:
     emsg = f"Failed to fetch data for station {station_id} on {isodate}: {error}"

@@ -1,11 +1,7 @@
 import utilrsw
-logger = utilrsw.logger(console_format='%(name)s %(levelname)s : %(message)s')
-
-
-def set_logging_level(level):
-  logger.setLevel(level)
-  for handler in logger.handlers:
-    handler.setLevel(level)
+logger = utilrsw.logger(
+  color=True,
+  console_format='%(name)s %(levelname)s : %(message)s')
 
 
 def get(url, format='json', cafile=None, timeout=30):

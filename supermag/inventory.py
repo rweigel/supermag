@@ -1,16 +1,6 @@
 """
 For usage, see:
   supermag-inventory --help
-
-Create combined inventory file using daily inventory from 1970-01-01 through tomorrow
-  Re-fetch daily inventory files
-    supermag-inventory --update-inventory
-  Use cached inventory files when available
-    supermag-inventory
-
-Short tests:
-  supermag-inventory --start 1970-01-01 --stop 1970-01-10
-  supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory
 """
 
 from .util import logger

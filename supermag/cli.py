@@ -1,6 +1,4 @@
-import logging
-
-from .util import logger, check_userid, set_logging_level
+from .util import logger, check_userid, path_relative_to_cwd
 
 from .config import config
 CONFIG = config()
@@ -16,16 +14,17 @@ def parse_data_args():
   default_start = '2001-01-01T00:00Z'
   default_stop  = '2001-01-01T00:01Z'
 
+  epilog = """
+  Examples:
+    supermag-data --userid USERID
+    supermag-data --userid USERID --dataset indices --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z
+    supermag-data --userid USERID --dataset ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z
+    supermag-data --userid USERID --dataset ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z
+  """
   parser = argparse.ArgumentParser(
     description='Fetch SuperMAG station data via data().',
-    formatter_class=argparse.RawDescriptionHelpFormatter,
-    epilog=(
-      'Examples:\n'
-      '  supermag-data --userid USERID\n'
-      '  supermag-data --userid USERID --dataset indices --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
-      '  supermag-data --userid USERID --dataset ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
-      '  supermag-data --userid USERID --dataset ABK --start 2001-01-01T00:00Z --stop 2001-01-01T01:00Z\n'
-    ),
+    epilog=epilog,
+    formatter_class=argparse.RawDescriptionHelpFormatter
   )
   parser.add_argument(
     '--dataset',
@@ -68,12 +67,12 @@ def parse_data_args():
   parser.add_argument(
     '--no-cache',
     action='store_true',
-    help='Disable caching entirely.'
+    help='Do not write or read cache.'
   )
   parser.add_argument(
     '--ignore-cache',
     action='store_true',
-    help='Re-fetch even if a cache file exists.'
+    help='Re-fetch data even if a cache file exists.'
   )
   parser.add_argument(
     '--cache-dir',
@@ -139,24 +138,30 @@ def parse_data_args():
 
 
 def parse_inventory_args():
-  import argparse
   import sys
+  import argparse
   import datetime as dt
-  from pathlib import Path
 
-  from .util import path_relative_to_cwd
+  from pathlib import Path
 
   default_start = '1970-01-01'
   tomorrow = dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
   default_stop  = (tomorrow).isoformat()
 
-  epilog =  'Examples:\n'
-  epilog += '  supermag-inventory\n'
-  epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03\n'
-  epilog += '  supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations\n'
+  epilog = """
+  Examples:
+    Full run:
+      supermag-inventory
+    Short tests:
+      supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory
+      supermag-inventory --start 2000-01-01 --stop 2000-01-03 --update-inventory --update-locations
+  """
 
-  description = 'Fetch daily SuperMAG inventories and create inventory.json file with list of avaialble dates for each station.'
-  description += '\n\nIf --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial\n'
+  description = """
+  Fetch daily SuperMAG inventories from 1970-01-01 through tomorrow and create inventory.json file with list of available dates for each station.
+
+  If --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial
+  """
 
   parser = argparse.ArgumentParser(
     description=description,
@@ -231,8 +236,6 @@ def parse_location_args():
   import argparse
   from pathlib import Path
 
-  from .util import path_relative_to_cwd
-
   from .config import config
   CONFIG = config()
 
@@ -241,8 +244,22 @@ def parse_location_args():
   to locations.json.
   """
 
+  epilog = """
+  Examples:
+    Fetch locations for all stations, using cached location data when available:
+      supermag-locations --userid USERID
+    Fetch locations for all stations, refetching location data even when cached data found:
+      supermag-locations --userid USERID --update
+    Fetch location for a single station, using cached location data when available:
+      supermag-locations --userid USERID --station-id ABK
+    Fetch location for a single station, refetching location data even when cached data found:
+      supermag-locations --userid USERID --station-id ABK --update
+  """
+
   parser = argparse.ArgumentParser(
-    description=description
+    description=description,
+    epilog=epilog,
+    formatter_class=argparse.RawDescriptionHelpFormatter
   )
 
   parser.add_argument(
@@ -290,7 +307,7 @@ def main_data():
   args = parse_data_args()
 
   if args.debug:
-    set_logging_level("DEBUG")
+    logger.setLevel("DEBUG")
 
   logger.debug("Parsed command-line arguments:")
   for arg in vars(args):
@@ -359,7 +376,7 @@ def main_inventory():
   args = parse_inventory_args()
 
   if args.debug:
-    set_logging_level("DEBUG")
+    logger.setLevel("DEBUG")
 
   kwargs = {
     'output_dir': args.output_dir,
@@ -379,7 +396,7 @@ def main_locations():
   args = parse_location_args()
 
   if args.debug:
-    set_logging_level("DEBUG")
+    logger.setLevel("DEBUG")
 
   kwargs = {
     'output_dir': args.output_dir,
