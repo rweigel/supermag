@@ -72,13 +72,16 @@ def _fetch_locations(userid,
       location_stop = existing_location.get('stop', {})
       if _has_location(location_start) or _has_location(location_stop):
         logger.debug(f"{station_id} already has location, skipping fetch because update=False.")
-        _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
         locations[station_id] = existing_location
+
         # The following is not needed in general, but is here in case the location
         # match logic is changed in the future.
         changed = _locations_differ(location_start, location_stop, location_change_threshold)
         locations[station_id]['geo_location_changed'] = changed
         locations[station_id]['geo_location_changed_note'] = _locations_differ_note(changed, location_change_threshold)
+
+        _print_location_info(station_id, locations[station_id], threshold=location_change_threshold)
+
         continue
 
     location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
@@ -86,8 +89,6 @@ def _fetch_locations(userid,
 
     location_start = _location_record(start_isodate, location_start, error_start)
     location_stop = _location_record(stop_isodate, location_stop, error_stop)
-
-    _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate)
 
     if _has_location(location_start) or _has_location(location_stop):
       changed = _locations_differ(location_start, location_stop, location_change_threshold)
@@ -105,6 +106,8 @@ def _fetch_locations(userid,
       else:
         logger.debug(f"{station_id}, and no existing location found. Adding empty location.")
         locations[station_id] = None
+
+    _print_location_info(station_id, locations[station_id], threshold=location_change_threshold)
 
   return locations
 
@@ -183,7 +186,7 @@ def _locations_differ(start_location, stop_location, threshold=None):
   if threshold is None:
     return (
       start_location.get('glat') != stop_location.get('glat')
-      and
+      or
       start_location.get('glon') != stop_location.get('glon')
     )
   else:
@@ -193,12 +196,20 @@ def _locations_differ(start_location, stop_location, threshold=None):
     return lat_adiff > threshold or lon_adiff > threshold
 
 
-def _print_location_info(station_id, location_start, location_stop, start_isodate, stop_isodate):
+def _print_location_info(station_id, location_record, threshold=None):
+
+  if location_record is None:
+    logger.warning(f"  Warning: No location information available for station {station_id}")
+    return
+  location_start = location_record.get('start', None)
+  location_stop = location_record.get('stop', None)
+  start_isodate = (location_start or {}).get('date', '')
+  stop_isodate = (location_stop or {}).get('date', '')
 
   logger.debug(station_id)
   start_msg = f"  Start {start_isodate}: {location_start}"
   stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
-  differ = _locations_differ(location_start, location_stop)
+  differ = _locations_differ(location_start, location_stop, threshold=threshold)
   if differ or differ is None:
     if differ:
       logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")

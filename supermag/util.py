@@ -4,25 +4,29 @@ logger = utilrsw.logger(
   console_format='%(name)s %(levelname)s: %(message)s')
 
 
-def get(url, format='json', cafile=None, timeout=30):
+def get(url, format='json', cafile=None, retry=1, timeout=30):
   import os
-  import urllib3
   import certifi
+
+  import urllib3
+  from urllib3.util.retry import Retry
 
   logger.debug("Getting URL: %s", url)
 
   pool_kwargs = {}
   if cafile is not None:
-    if os.path.isfile(cafile):
-      pool_kwargs['ca_certs'] = cafile
-    elif cafile.lower() == 'default':
-      pool_kwargs['ca_certs'] = certifi.where()
-    else:
-      raise ValueError(f"Invalid cafile value: {cafile}. Must be 'default', 'none', or path to PEM file.")
-    logger.debug(f"  Using CA certificates from: {pool_kwargs['ca_certs']}")
+    if cafile != 'none':
+      if os.path.isfile(cafile):
+        pool_kwargs['ca_certs'] = cafile
+      elif cafile.lower() == 'default':
+        pool_kwargs['ca_certs'] = certifi.where()
+      else:
+        raise ValueError(f"Invalid cafile value: '{cafile}'. Must be 'default', 'none', or path to PEM file.")
+      logger.debug(f"  Using CA certificates from: {pool_kwargs['ca_certs']}")
 
   try:
-    http = urllib3.PoolManager(**pool_kwargs)
+    retries = Retry.from_int(retry)
+    http = urllib3.PoolManager(retries=retries, **pool_kwargs)
     response = http.request('GET', url, timeout=timeout)
   except Exception as error:
     logger.debug(f"  Failed: {error}")
@@ -46,31 +50,37 @@ def _parse_response(response, format=None):
   if format not in [None, 'string', 'json']:
     raise ValueError("Invalid format. Must be one of: None, 'string', 'json'.")
 
+  response_str = ''
   try:
-    longstring = response.data.decode('utf-8')
+    response_str = response.data.decode('utf-8')
     if debug_response:
-      logger.debug(f"Raw response string (first 80 chars): {longstring[0:80]}")
-    # JSON does not allow NaN
-    longstring = re.sub(r'\b(?:NaN|nan|Infinity|inf|-Infinity|-inf)\b', 'null', longstring, flags=re.IGNORECASE)
+      logger.debug(f"Raw response string (first 80 chars): {response_str[0:80]}")
   except Exception as error:
-    return None, f"Error: '{error}' for response data: '{longstring}'"
+    return None, f"Error: response.data.decode('utf-8') gave error '{error}' response: {response}"
   finally:
     response.release_conn()
 
-  if longstring.startswith("ERROR"):
-    error = Exception(longstring)
+  try:
+    # JSON does not allow NaN
+    regex = r'\b(?:NaN|nan|Infinity|inf|-Infinity|-inf)\b'
+    response_str = re.sub(regex, 'null', response_str, flags=re.IGNORECASE)
+  except Exception as error:
+    return None, f"Error {error} when replacing NaN/Inf in response string '{response_str}'"
+
+  if response_str.startswith("ERROR"):
+    error = Exception(response_str)
     return None, error
 
   if format is None or format == 'string':
-    return longstring
+    return response_str
 
-  if len(longstring) == 0:
+  if len(response_str) == 0:
     return {}, None
 
   try:
-    data_json = json.loads(longstring)
+    data_json = json.loads(response_str)
   except Exception as error:
-    error = Exception(f"json.loads() error '{error}' for response (first 80 chars): '{longstring[0:80]}'")
+    error = Exception(f"json.loads() error '{error}' for response (first 80 chars): '{response_str[0:80]}'")
     return None, error
 
   return data_json, None
@@ -111,33 +121,35 @@ def write_json_and_archive(data, file_path, archive_dir=None):
 
 
 def move_log_files(log_files, dst_dir, archive=False):
-    import gzip
-    import shutil
-    import pathlib
-    import datetime
+  import gzip
+  import shutil
+  import pathlib
+  import datetime
 
-    for log_file in log_files:
-      src = pathlib.Path(log_file)
-      if src.exists():
-        # Move log file to the output directory
-        dst = pathlib.Path(dst_dir) / log_file
-        logger.info(f"Moving {src} to {dst}")
-        shutil.move(str(src), str(dst))
+  pathlib.Path(dst_dir).mkdir(parents=True, exist_ok=True)
 
-        if not archive:
-          continue
+  for log_file in log_files:
+    src = pathlib.Path(log_file)
+    if src.exists():
+      # Move log file to the output directory
+      dst = pathlib.Path(dst_dir) / log_file
+      logger.info(f"Moving {src} to {dst}")
+      shutil.move(str(src), str(dst))
 
-        # Copy dst to archive and rename to dst-{timestamp}.log
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H:%M:%SZ")
-        archive_dst = pathlib.Path(dst_dir) / 'archive' / f"{pathlib.Path(log_file).stem}-{timestamp}.log"
-        logger.info(f"Copying {dst} to {archive_dst}")
-        shutil.copy2(str(dst), str(archive_dst))
-        archive_dst.parent.mkdir(parents=True, exist_ok=True)
+      if not archive:
+        continue
 
-        with open(archive_dst, 'rb') as f_in:
-          with gzip.open(f"{archive_dst}.gz", 'wb') as f_out:
-            f_out.writelines(f_in)
-        archive_dst.unlink()
+      # Copy dst to archive and rename to dst-{timestamp}.log
+      timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H:%M:%SZ")
+      archive_dst = pathlib.Path(dst_dir) / 'archive' / f"{pathlib.Path(log_file).stem}-{timestamp}.log"
+      archive_dst.parent.mkdir(parents=True, exist_ok=True)
+      logger.info(f"Copying {dst} to {archive_dst}")
+      shutil.copy2(str(dst), str(archive_dst))
+
+      with open(archive_dst, 'rb') as f_in:
+        with gzip.open(f"{archive_dst}.gz", 'wb') as f_out:
+          f_out.writelines(f_in)
+      archive_dst.unlink()
 
 
 def parse_timestamp(timestamp):

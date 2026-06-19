@@ -1,8 +1,4 @@
-import os
-
 import pytest
-
-import util
 
 
 def pytest_addoption(parser):
@@ -15,6 +11,9 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+  import os
+  import util # util.py in dir of this script.
+  # TODO: Implement SUPERMAG_USERID environment variable.
   userid = config.getoption('--userid') or os.environ.get('SUPERMAG_USERID')
   if not userid:
     raise pytest.UsageError(

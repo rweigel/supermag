@@ -92,9 +92,9 @@ def inventory(userid,
     from .locations import locations
 
     if update_locations:
-      logger.info("Getting geographic locations for each station on start and stop dates (using cached data, if available)")
+      logger.info("Getting geographic locations for each station on start and stop dates (refetching cached data)")
     else:
-      logger.info("Getting geographic locations for each station on start and stop dates")
+      logger.info("Getting geographic locations for each station on start and stop dates (using cached data, if available)")
 
     kwargs = {
       'output_dir': output_dir,
@@ -104,7 +104,10 @@ def inventory(userid,
     }
     geo_locations = locations(userid, **kwargs)
 
-  station_info = _get_station_info(cafile=cafile)
+  station_info, station_info_error = _get_station_info(cafile=cafile)
+  if station_info_error is not None:
+    logger.warning(f"Failed to fetch station info: {station_info_error}")
+    station_info = {}
 
   logger.info("Adding geographic locations to inventory entries")
 
@@ -229,7 +232,9 @@ def _get_inventory(start):
     })
   url = f'{CONFIG['inventory']['base_url']}?{query}'
 
-  response, error = get(url, timeout=CONFIG['inventory']['timeout'])
+  response, error = get(url,
+                        retry=CONFIG['inventory']['retry'],
+                        timeout=CONFIG['inventory']['timeout'])
 
   if error is not None:
     logger.error(f"  Error fetching inventory for {start}: {error}")
@@ -244,7 +249,15 @@ def _get_station_info(cafile=None):
   from .config import config
 
   station_info_url = config('inventory')['station_info_url']
-  station_info, error = get(station_info_url, format='json', cafile=cafile, timeout=CONFIG['inventory']['timeout'])
+  kwargs = {
+     'format': 'json',
+     'cafile': cafile,
+      'retry': CONFIG['inventory']['retry'],
+     'timeout': CONFIG['inventory']['timeout']
+  }
+  station_info, error = get(station_info_url, **kwargs)
+  if error is not None:
+    return {}, error
 
   # Convert list of station info to dictionary keyed by station ID
   station_info = {item['id']: item for item in station_info}
@@ -257,7 +270,7 @@ def _get_station_info(cafile=None):
     if 'geolon' in item:
       item['glon'] = item.pop('geolon')
 
-  return station_info
+  return station_info, None
 
 
 def _print_summary(inventory):

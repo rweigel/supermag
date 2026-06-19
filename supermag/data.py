@@ -48,7 +48,7 @@ def data(userid, stationid, start, extent,
     delta = None
   else:
     if baseline not in ['yearly', 'all', 'none']:
-      raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: yearly, default, none.")
+      raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: yearly, all, none.")
 
     if delta not in ['start', 'none']:
       raise ValueError(f"Invalid delta value: {delta}. Must be one of: start, none.")
@@ -73,7 +73,7 @@ def data(userid, stationid, start, extent,
     extent = _stop_to_extent(start, extent)
 
   # Preserve the originally requested extent for sub-setting
-  requested_extent = extent
+  extent_requested = extent
 
   # When caching, always fetch all extra parameters and a full day
   if cache:
@@ -83,7 +83,15 @@ def data(userid, stationid, start, extent,
 
   # Try to load from cache
   if cache and not ignore_cache:
-    result, error = _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=delta, baseline=baseline)
+    result, error = _cache_get(cache_dir,
+                               stationid,
+                               format,
+                               start,
+                               extent,
+                               extent_requested,
+                               cadence,
+                               delta=delta,
+                               baseline=baseline)
     if result is not None or error is not None:
       return result, error
 
@@ -110,7 +118,7 @@ def data(userid, stationid, start, extent,
    # Cache the full response before sub-setting, so we have the full data available in cache for future requests.
   if cache:
     _cache_write(data_json, cache_dir, stationid, cadence, delta=delta, baseline=baseline)
-    data_json = _subset(data_json, start, requested_extent)
+    data_json = _subset(data_json, start, extent_requested)
 
   if format == 'json':
     return data_json, None
@@ -121,7 +129,11 @@ def data(userid, stationid, start, extent,
 def _get_and_parse(url, stationid, format='json', cafile=None):
   from .util import get
   try:
-    data_json, error = get(url, cafile=cafile, format='json', timeout=CONFIG['data']['timeout'])
+    data_json, error = get(url,
+                           cafile=cafile,
+                           format='json',
+                           retry=CONFIG['data']['retry'],
+                           timeout=CONFIG['data']['timeout'])
     if error is not None:
       logger.debug(error)
       return None, {'url': url, 'error': error}
@@ -163,7 +175,6 @@ def _reformat(data_json, format='json'):
   `data_json` is the response from _parse_response().
   For list input, nested dicts are flattened (e.g. N.nez -> N_nez).
   """
-  import pandas
   from datetime import datetime, timezone
 
   if format not in ['json', 'list', 'dataframe', 'csv']:
@@ -198,6 +209,7 @@ def _reformat(data_json, format='json'):
   if format == 'list':
     return [header] + data_rows
 
+  import pandas
   df = pandas.DataFrame(data_rows, columns=header)
   if format == 'csv':
     for col in df.columns:
@@ -243,7 +255,7 @@ def _subset(data, start, extent):
   return [row for row in data if start_ts <= row['tval'] < stop_ts]
 
 
-def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, cadence, delta=None, baseline=None):
+def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, cadence, delta=None, baseline=None):
 
   if False:
     _locals = locals()
@@ -260,7 +272,7 @@ def _cache_get(cache_dir, stationid, format, start, extent, requested_extent, ca
   if cached is None:
     return None, None
 
-  data = _subset(cached, start, requested_extent)
+  data = _subset(cached, start, extent_requested)
 
   if format == 'dataframe':
     return data, None
@@ -285,6 +297,7 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
 
   if stationid == 'indices':
     sub_dir = pathlib.Path(f'indices/{cadence}')
+    return cache_dir / sub_dir
   else:
     sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}")
 
