@@ -189,9 +189,10 @@ def parse_catalog_args():
     Full run:
       supermag-catalog --userid USERID
     Short tests:
-      supermag-catalog --start 1970-01-01 --stop 1970-01-10 --userid USERID
-      supermag-catalog --start 1970-01-01 --stop 1970-01-10 --update-inventory --userid USERID
-      supermag-catalog --start 1970-01-01 --stop 1970-01-10 --update-inventory --update-locations --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --update-locations --userid USERID
   """
 
   parser = _parser(description=description, epilog=epilog)
@@ -411,7 +412,7 @@ def _add_arg(parser, arg, default=None):
       default=default,
       help=f'First UTC day to fetch, in YYYY-MM-DD format. Default: {default}',
     )
-  if arg == "start":
+  if arg == "stop":
     parser.add_argument(
       '--stop',
       default=default,

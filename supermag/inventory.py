@@ -175,7 +175,7 @@ def get_inventories(start, stop,
   requested = 0
   data_range = _date_range(start, stop)
   s = '' if len(data_range) == 1 else 's'
-  logger.info(f"Getting inventory on {len(data_range)} day{s} from {start:%Y-%m-%d} to {stop:%Y-%m-%d}")
+  logger.info(f"Preparing inventory on {len(data_range)} day{s} from {start:%Y-%m-%d} to {stop:%Y-%m-%d}")
   if update:
     logger.info("Updating inventory files, ignoring cached data")
   else:
@@ -185,10 +185,10 @@ def get_inventories(start, stop,
 
     # Print info when year changes
     if date.month == 1 and date.day == 1:
-      logger.info(f"Getting inventory for all days in year {date.year}")
+      logger.info(f"Preparing inventory for all days in year {date.year}")
 
     date_str = date.strftime('%Y-%m-%d')
-    logger.debug(f"Getting inventory for {date_str}")
+    logger.debug(f"Preparing inventory for {date_str}")
 
     if not update:
       output_file = inventory_file_path(output_dir, date)

@@ -40,16 +40,7 @@ def catalog(userid,
 
         id = f"{entry['id']}/{sub_dataset}/{cadence}/{sub_sub_dataset}"
 
-        cadence_str = ""
-        if cadence == 'PT1M':
-          cadence_str = "at 1-minute cadence"
-        if cadence == 'PT1S':
-          cadence_str = "at 1-second cadence"
-
-        title = f"Data from magnetometer station {entry['id']} {cadence_str} "
-        title += f"with baseline removal option '{sub_dataset}' "
-
-        dataset = _dataset_template(id, title, cadence, sub_sub_dataset)
+        dataset = _dataset_template(id)
 
         #_set_location_info(entry, dataset)
 
@@ -58,20 +49,35 @@ def catalog(userid,
   return catalog
 
 
-def _dataset_template(id, title, cadence, csys):
+def _dataset_template(dataset_id):
 
-  description = """
-  Ground-based magnetometer dataset IDs have the form
-  {station_id}/PT1M/{baseline_choice}/{frame}, where
-  {baseline_choice} is 'baseline_none', 'baseline_yearly' (yearly trend removed),
-  or 'baseline_all' (yearly trend and start value subtracted);
-  see https://supermag.jhuapl.edu/mag/?fidelity=low&tab=description. {frame}
-  = 'XYZ' corresponds to geographic coordinates (X=North, Y=East, Z=vertical down);
-  frame = 'NEZ' corresponds to local geomagnetic coordinates
-  (N=North, E=East, Z=vertical down).
+  def join(s):
+    # Join description lines and remove leading/trailing whitespace
+    return ' '.join(line.strip() for line in s.strip().splitlines())
+
+  station_id, cadence, baseline, csys = dataset_id.split('/')
+
+  title = f"""
+  Data from magnetometer station {station_id} {cadence} with baseline removal
+  option '{baseline}'
   """
-  # Join description lines and remove leading/trailing whitespace
-  description = ' '.join(line.strip() for line in description.strip().splitlines())
+  title = join(title)
+
+  description = f"""
+  {title}. SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form
+  IAGA_ID/CADENCE/BASELINE_OPTION/COORD_SYS, where IAGA_ID is the IAGA station
+  code, CADENCE is the data cadence in ISO 8601 duration format, BASELINE_OPTION
+  is the baseline removal option, and COORD_SYS is the coordinate system. 
+  BASELINE_OPTION is one of 'baseline_none' (no baseline removal), 'baseline_yearly'
+  (yearly trend removed), or 'baseline_all' (yearly trend and daily variation
+  removed). See Gjerloev, 2012 (https://doi.org/10.1029/2012JA017683) for details. 
+  COORD_SYS = 'XYZ' corresponds to geographic coordinates (X=North, Y=East, 
+  Z=vertical down); 'NEZ' corresponds to local geomagnetic coordinates (N=North, 
+  E=East, Z=vertical down). See https://supermag.jhuapl.edu/mag/?tab=description
+  for additional details and a description of the parameters sza, decl, mcolat, 
+  and mlt.
+  """
+  description = join(description)
 
   note = """
   The location given in this metadata is the first valid glat, glon of the 
@@ -80,35 +86,25 @@ def _dataset_template(id, title, cadence, csys):
   will include a warning. In this case, the location of the station must be 
   obtained from the dataset parameters glat and glon.
   """
-  note = ' '.join(line.strip() for line in note.strip().splitlines())
+  note = join(note)
 
+  description_field = 'Field_Vector components X, Y, and Z, correspond to the '
   if csys == 'NEZ':
-    description = 'N_geo, E_geo, Z_geo, the local geomagnetic N, E, Z vector components'
+    description_field += 'local geomagnetic North, East, and vertically down directions'
   elif csys == 'XYZ':
-    description = 'N_geo, E_geo, Z_geo, the geographic N, E, Z vector components'
+    description_field += 'geographic North, East, and vertically down directions'
 
   dataset = {
-    'id': id,
+    'id': dataset_id,
     'title': title,
     'info': {
       'startDate': None,
       'stopDate': None,
       'cadence': cadence,
-      'maxRequestDuration': 'P1Y',
-      'datasetCitation': 'https://supermag.jhuapl.edu/info/?page=rulesoftheroad',
       'description': description,
+      'datasetCitation': 'https://supermag.jhuapl.edu/info/?page=rulesoftheroad',
       'location': None,
-      'additionalMetadata': [
-        {
-          "name": "iaga",
-          "content": None
-        },
-        {
-          "name": "baselines",
-          "contentURL": "https://supermag.jhuapl.edu/mag/?fidelity=low&tab=description",
-          "content": "Subtract the daily variations and yearly trend (using Gjerloev, 2012)"
-        }
-      ],
+      'maxRequestDuration': 'P1Y',
       'parameters': [
         {
           "length": 24,
@@ -118,13 +114,13 @@ def _dataset_template(id, title, cadence, csys):
         },
         {
           "name": "Field_Vector",
+          "description": description_field,
           "type": "double",
           "units": "nT",
+          "fill": "999999.0",
           "size": [
             3
           ],
-          "fill": "999999.0",
-          "description": None,
           "label": [
             "X",
             "Y",
@@ -157,7 +153,7 @@ def _dataset_template(id, title, cadence, csys):
           "type": "double",
           "units": "degrees",
           "fill": "0",
-          "description": "declination in degrees computed using the IGRF model"
+          "description": "time-averaged declination in degrees"
         },
         {
           "name": "glon",
