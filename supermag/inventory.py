@@ -64,7 +64,7 @@ def inventory(userid,
   inventory_by_day = get_inventories(start, stop, **kwargs)
 
   inventory_by_station = {}
-  logger.info(f'Converting {len(inventory_by_day)} by-day inventory to by-id inventory')
+  logger.info(f'Converting {len(inventory_by_day)} by-day inventory to by-id inventories')
   for inventory_date, station_ids in inventory_by_day.items():
     for sid in station_ids:
       if sid not in inventory_by_station:
@@ -73,11 +73,12 @@ def inventory(userid,
 
   logger.info(f"  {len(inventory_by_station)} stations in requested date range")
 
-  logger.info("Creating catalog")
+  logger.info("Restructuring inventory information")
   inventory_by_station = _restructure_inventory(inventory_by_station)
 
   _add_station_info(inventory_by_station, cafile=cafile)
 
+  # Filter inventory by station id if specified
   if station_id is not None:
     inventory_by_station = [entry for entry in inventory_by_station if entry['id'] == station_id]
     if not inventory_by_station:
@@ -220,6 +221,7 @@ def _get_inventory(start):
 def _restructure_inventory(inventory):
   """Restructure inventory_by_station"""
 
+  station_days = 0
   s = '' if len(inventory) == 1 else 's'
   logger.info(f'  Adding {{start,stop}}Date and availability info to {len(inventory)} station{s}')
   inventory_r = []
@@ -238,14 +240,19 @@ def _restructure_inventory(inventory):
       available_percent = 100 * len(available_dates) / len(all_dates)
       entry['availability']['available_percent'] = round(available_percent, 2)
       entry['availability']['unavailable'] = sorted(set(all_dates) - set(available_dates))
+      station_days += len(available_dates)
+    else:
+      station_days += len(available_dates)
 
     inventory_r.append(entry)
+
+  logger.info(f"Total station-days: {station_days}")
 
   return inventory_r
 
 
-def _add_station_info(catalog, cafile=None):
-  logger.info("Getting station info")
+def _add_station_info(inventory, cafile=None):
+  logger.info("Getting all station info")
   station_info, station_info_error = _get_station_info(cafile=cafile)
   if station_info_error is not None:
     logger.warning(f"  Failed to fetch station info: {station_info_error}")
@@ -253,8 +260,8 @@ def _add_station_info(catalog, cafile=None):
     return
 
   logger.info(f"  Station info has {len(station_info)} stations")
-  logger.info("Adding station info to catalog entries")
-  for entry in catalog:
+  logger.info("Adding station info to inventory entries")
+  for entry in inventory:
     if entry['id'] in station_info:
       entry['station'] = station_info[entry['id']]
 
@@ -297,10 +304,11 @@ def _add_location_details(userid, inventory,
 
   from .locations import locations
 
+  msgo = "geographic locations for each station on start and stop dates"
   if update_locations:
-    logger.info("Getting geographic locations for each station on start and stop dates (refetching cached data)")
+    logger.info(f"Getting {msgo} (refetching cached data)")
   else:
-    logger.info("Getting geographic locations for each station on start and stop dates (using cached data, if available)")
+    logger.info(f"Getting {msgo} (using cached data, if available)")
 
   kwargs = {
     'output_dir': output_dir,
@@ -311,14 +319,14 @@ def _add_location_details(userid, inventory,
   }
   location_details = locations(userid, **kwargs)
 
-  logger.info("Adding geographic locations to inventory entries")
+  logger.info(f"Adding {msgo} to inventory entries")
   for entry in inventory:
     if entry['id'] in location_details:
       entry['location'] = location_details[entry['id']]
 
 
 def _print_summary(inventory):
-  logger.info("Inventory summary")
+  logger.info("Inventory summary:")
   for entry in inventory:
 
     logger.info(f"{entry['id']}: ")

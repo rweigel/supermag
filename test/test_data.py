@@ -153,6 +153,7 @@ def test_one_and_half_day_request(userid=userid):
   check_output(data, n_records=n_records, output_file="response for multi-day request")
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
 
+
 if __name__ == "__main__":
   import sys
   from supermag.util import logger

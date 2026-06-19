@@ -6,17 +6,13 @@ CONFIG = config()
 def catalog(userid,
           start=None,
           stop=None,
-          output_dir=None,
+          output_dir=CONFIG['common']['output_dir'],
           update_inventory=False,
           update_locations=False,
           dataset=None,
           cafile=None):
 
-  logger.info(f"Running catalog for user {userid}")
-  logger.debug(f"Output directory: {output_dir}")
-  logger.debug(f"Update inventory: {update_inventory}")
-  logger.debug(f"Update locations: {update_locations}")
-  logger.debug(f"dataset: {dataset}")
+  logger.info("Generating SuperMAG HAPI catalog")
 
   from .inventory import inventory
   kwargs = {
@@ -30,8 +26,10 @@ def catalog(userid,
     'cafile': cafile
   }
 
+  logger.info("Getting inventory")
   inventory = inventory(userid, **kwargs)
 
+  logger.info("Building catalog from inventory")
   cadence = 'PT1M'
   catalog = []
   for entry in inventory:
@@ -40,10 +38,9 @@ def catalog(userid,
 
         id = f"{entry['id']}/{sub_dataset}/{cadence}/{sub_sub_dataset}"
 
-        dataset = _dataset_template(id, entry)
-        #_set_location_info(entry, dataset)
+        dataset_metadata = _dataset_template(id, entry)
 
-        catalog.append(dataset)
+        catalog.append(dataset_metadata)
 
   return catalog
 
@@ -205,6 +202,6 @@ def _dataset_template(dataset_id, inventory_entry):
         "content": location_info
       })
 
-
   dataset['info']['additionalMetadata'] = additionalMetadata
+
   return dataset
