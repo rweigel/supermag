@@ -20,14 +20,7 @@ def test_format(userid=userid):
 
 
 if __name__ == "__main__":
-  import sys
-  from supermag.util import logger
-
-  logger.setLevel('DEBUG')
-
-  args = sys.argv
-  if len(args) == 2:
-    test_default()
-    test_format()
-  else:
-    print("Usage: python test_locations.py USERID")
+  from util import parse_args
+  args = parse_args()
+  test_default(userid=args.userid)
+  test_format(userid=args.userid)

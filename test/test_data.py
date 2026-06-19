@@ -155,19 +155,12 @@ def test_one_and_half_day_request(userid=userid):
 
 
 if __name__ == "__main__":
-  import sys
-  from supermag.util import logger
-  logger.setLevel('DEBUG')
+  from util import parse_args
+  args = parse_args()
 
-  args = sys.argv
-  if len(args) == 2:
-    userid = args[1]
-  else:
-    print("Usage: python test_data.py USERID")
-
-    test_default(userid=args[1])
-    test_format(userid=args[1])
-    test_options(userid=args[1])
-    test_full_day_request(userid=args[1])
-    test_half_day_request(userid=args[1])
-    test_one_and_half_day_request(userid=args[1])
+  test_default(userid=args.userid)
+  test_format(userid=args.userid)
+  test_options(userid=args.userid)
+  test_full_day_request(userid=args.userid)
+  test_half_day_request(userid=args.userid)
+  test_one_and_half_day_request(userid=args.userid)

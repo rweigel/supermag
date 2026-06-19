@@ -185,7 +185,7 @@ def path_relative_to_cwd(path):
 
 def check_userid(userid):
   if not userid:
-    raise ValueError("SuperMAG user id is required")
+    raise ValueError(f"SuperMAG user id is required. Got: {userid}")
 
   if userid == 'USERID':
     raise ValueError("Provide a valid SuperMAG user id instead of the placeholder 'USERID'")

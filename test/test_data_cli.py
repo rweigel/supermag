@@ -1,11 +1,12 @@
+# Usage:
+#   pytest test_cafile.py --userid USERID
+#   python test_cafile.py --userid USERID
 import sys
 import pathlib
 import tempfile
 import subprocess
 
 from util import _check_output_file, userid
-
-# pytest -v -s test/test_cli.py
 
 base_cmd = [sys.executable, '-m', 'supermag.data']
 
@@ -69,15 +70,8 @@ def _run_test_command(cmd):
 
 
 if __name__ == '__main__':
-  from supermag.util import logger
-  logger.setLevel('DEBUG')
-
-  if len(sys.argv) == 2:
-    userid = sys.argv[1]
-  else:
-    print("Usage: python test_data_cli.py USERID")
-    sys.exit(1)
-
-  test_help(userid=userid)
-  test_default(userid=userid)
-  test_format(userid=userid)
+  from util import parse_args
+  args = parse_args()
+  test_help(userid=args.userid)
+  test_default(userid=args.userid)
+  test_format(userid=args.userid)

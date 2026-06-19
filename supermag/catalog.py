@@ -9,10 +9,23 @@ def catalog(userid,
           output_dir=CONFIG['common']['output_dir'],
           update_inventory=False,
           update_locations=False,
-          dataset=None,
+          dataset=None, # HAPI dataset ID to filter by
           cafile=None):
 
   logger.info("Generating SuperMAG HAPI catalog")
+
+  filter = False
+  if start is not None or stop is not None or dataset is not None:
+    filter = True
+    logger.info("  Applying filters:")
+  if start is not None:
+    logger.info(f"    stations with start date {start} or after")
+  if stop is not None:
+    logger.info(f"    stations with stop date {stop} or before")
+  if dataset is not None:
+    logger.info(f"    datasets with HAPI ID that starts with {dataset}")
+
+  station_id = dataset.split('/')[0] if dataset else None
 
   from .inventory import inventory
   kwargs = {
@@ -22,7 +35,7 @@ def catalog(userid,
     'update_inventory': update_inventory,
     'update_locations': update_locations,
     'include_locations': True,
-    'station_id': dataset,
+    'station_id': station_id,
     'cafile': cafile
   }
 
@@ -36,11 +49,24 @@ def catalog(userid,
     for sub_dataset in ['baseline_none', 'baseline_yearly', 'baseline_all']:
       for sub_sub_dataset in ['XYZ', 'NEZ']:
 
-        id = f"{entry['id']}/{sub_dataset}/{cadence}/{sub_sub_dataset}"
+        dataset_id = f"{entry['id']}/{sub_dataset}/{cadence}/{sub_sub_dataset}"
 
-        dataset_metadata = _dataset_template(id, entry)
+        # Keep only the metadata for the requested dataset or any dataset that
+        # starts with the requested dataset.
+        if dataset and dataset_id != dataset:
+          if not dataset_id.startswith(dataset):
+            continue
+
+        dataset_metadata = _dataset_template(dataset_id, entry)
 
         catalog.append(dataset_metadata)
+
+  logger.info(f"Built catalog with {len(catalog)} datasets from {len(inventory)} magnetometer stations")
+  if len(catalog) == 0:
+    if filter:
+      logger.warning("No HAPI datasets found given the start, stop, and dataset filters")
+    else:
+      raise ValueError("No HAPI datasets found")
 
   return catalog
 

@@ -1,9 +1,16 @@
+# Usage:
+#   pytest test_cafile.py --userid USERID
+#   python test_cafile.py --userid USERID
+
 import supermag
+
+from util import userid
 
 import certifi
 cafile_default = certifi.where()
 
-def test_get(userid=None):
+
+def test_get(userid=userid):
 
   url = "https://hapi-server.org/servers/TestData2.0/hapi/catalog"
   response, error = supermag.util.get(url, cafile=cafile_default)
@@ -11,7 +18,7 @@ def test_get(userid=None):
   assert response is not None, "No response received"
 
 
-def test_data(userid=None):
+def test_data(userid=userid):
   args = ['ABK', '2000-01-01', 60]
 
   cafile = None
@@ -26,7 +33,7 @@ def test_data(userid=None):
   assert data is not None, "No data received"
 
 
-def test_locations(userid=None):
+def test_locations(userid=userid):
 
   kwargs = {
     'start': '1970-01-01',
@@ -54,7 +61,7 @@ def test_locations(userid=None):
   assert locations is not None, "No output"
 
 
-def test_inventory(userid=None):
+def test_inventory(userid=userid):
   kwargs = {
     'start': '1970-01-01',
     'stop': '1970-01-03',
@@ -64,7 +71,7 @@ def test_inventory(userid=None):
   }
 
   cafile = None
-  inventory = supermag.inventory(None, cafile=cafile, **kwargs)
+  inventory = supermag.inventory(userid, cafile=cafile, **kwargs)
   assert inventory is not None, "No output"
 
   cafile = 'default'
@@ -76,7 +83,7 @@ def test_inventory(userid=None):
   assert inventory is not None, "No output"
 
 
-def test_catalog(userid=None):
+def test_catalog(userid=userid):
 
   kwargs = {
     'start': '1970-01-01',
@@ -100,18 +107,11 @@ def test_catalog(userid=None):
 
 
 if __name__ == "__main__":
-  import sys
-  from supermag.util import logger
-  logger.setLevel('DEBUG')
+  from util import parse_args
+  args = parse_args()
 
-  args = sys.argv
-  if len(args) == 2:
-    userid = args[1]
-  else:
-    print("Usage: python test_cafile.py USERID")
-
-  test_get(userid)
-  test_data(userid)
-  test_locations(userid)
-  test_inventory(userid)
-  test_catalog(userid)
+  test_get(userid=args.userid)
+  test_data(userid=args.userid)
+  test_locations(userid=args.userid)
+  test_inventory(userid=args.userid)
+  test_catalog(userid=args.userid)

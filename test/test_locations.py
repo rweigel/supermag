@@ -30,16 +30,6 @@ def test_short(userid=userid):
 
 
 if __name__ == "__main__":
-
-  import sys
-  from supermag.util import logger
-
-  logger.setLevel('DEBUG')
-
-  args = sys.argv
-  if len(args) == 2:
-    userid = args[1]
-  else:
-    print("Usage: python test_locations.py USERID")
-
-  test_short(userid=args[1])
+  from util import parse_args
+  args = parse_args()
+  test_short(userid=args.userid)

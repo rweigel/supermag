@@ -146,3 +146,17 @@ def check_equivalent(all_formats, data_type='data'):
         assert str(row[key]) == str(json_row[key]), f"Expected {key} value '{json_row[key]}' in row {i} of {format} output, found '{row[key]}'"
     else:
       assert False, f"Unsupported row type in {format} output: {type(row)}"
+
+
+def parse_args():
+  import argparse
+
+  from supermag.util import logger
+
+  logger.setLevel('DEBUG')
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--userid', required=True, help='SuperMAG user ID (required).')
+  args = parser.parse_args()
+
+  return args
