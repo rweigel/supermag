@@ -8,7 +8,8 @@
     "retry": 3,
     "geo_location_change_threshold": 0.0001,
     "base_url": "https://supermag.jhuapl.edu/lib/services/inventory.php",
-    "station_info_url": "https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json"
+    "station_info_url": "https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json",
+    "station_info_doc": "https://supermag.jhuapl.edu/line/?tab=stationinfo"
   },
   "data": {
     "timeout": 60,

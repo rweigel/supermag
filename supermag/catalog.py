@@ -40,8 +40,7 @@ def catalog(userid,
 
         id = f"{entry['id']}/{sub_dataset}/{cadence}/{sub_sub_dataset}"
 
-        dataset = _dataset_template(id)
-
+        dataset = _dataset_template(id, entry)
         #_set_location_info(entry, dataset)
 
         catalog.append(dataset)
@@ -49,7 +48,7 @@ def catalog(userid,
   return catalog
 
 
-def _dataset_template(dataset_id):
+def _dataset_template(dataset_id, inventory_entry):
 
   def join(s):
     # Join description lines and remove leading/trailing whitespace
@@ -57,14 +56,21 @@ def _dataset_template(dataset_id):
 
   station_id, cadence, baseline, csys = dataset_id.split('/')
 
+  station_info = inventory_entry.get('station', {})
+  name = station_info.get('name', None)
+  if name is None:
+    name = ''
+  else:
+    name = f"({name})"
+
   title = f"""
-  Data from magnetometer station {station_id} {cadence} with baseline removal
-  option '{baseline}'
+  Data from magnetometer station {station_id} {name} {cadence} with baseline removal
+  option '{baseline}'.
   """
   title = join(title)
 
   description = f"""
-  {title}. SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form
+  {title} SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form
   IAGA_ID/CADENCE/BASELINE_OPTION/COORD_SYS, where IAGA_ID is the IAGA station
   code, CADENCE is the data cadence in ISO 8601 duration format, BASELINE_OPTION
   is the baseline removal option, and COORD_SYS is the coordinate system. 
@@ -172,6 +178,17 @@ def _dataset_template(dataset_id):
       ]
     }
   }
+
+  from .config import config
+  cfg = config('inventory')
+
+  if station_info is not None:
+    dataset['info']['additionalMetadata'] = {
+      "name": "Magnetometer Station Information",
+      "content": station_info,
+      "contentURL": cfg['station_info_url'],
+      "aboutURL": cfg['station_info_url']
+    }
 
   return dataset
 
