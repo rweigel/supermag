@@ -12,7 +12,8 @@ def locations(userid,
               output_dir=CONFIG['common']['output_dir'],
               update=False,
               station_id=None,
-              inventory=None):
+              inventory=None,
+              cafile=None):
 
 
   import pathlib
@@ -26,7 +27,7 @@ def locations(userid,
   if inventory is None:
     inventory = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update)
+  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update, cafile=cafile)
 
   # Merge new locations with existing locations
   if station_id is None:
@@ -48,7 +49,8 @@ def _fetch_locations(userid,
                     inventory,
                     output_dir=CONFIG['common']['output_dir'],
                     existing_locations=None,
-                    update=False):
+                    update=False,
+                    cafile=None):
 
   import copy
 
@@ -116,13 +118,14 @@ def _fetch_location(userid,
                     station_id,
                     isodate,
                     value='first',
-                    update=False):
+                    update=False,
+                    cafile=None):
   from .data import data as data
 
   logger.debug("")
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
-  data, error = data(userid, station_id, isodate, extent, ignore_cache=update)
+  data, error = data(userid, station_id, isodate, extent, ignore_cache=update, cafile=cafile)
 
   if error is not None:
     emsg = f"Failed to fetch data for station {station_id} on {isodate}: {error}"

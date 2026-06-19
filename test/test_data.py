@@ -13,14 +13,14 @@ TODO:
   * Test cafile option
 """
 
-def test_default():
+def test_default(userid=userid):
 
   data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, ignore_cache=ignore_cache)
   assert error is None, f"Expected no error in response, found: {error}"
   check_output(data, n_records=1, output_file="response for default test")
 
 
-def test_start():
+def test_start(userid=userid):
   starts = ['2001-01-01', '2001-01-01T00Z', '2001-01-01T00:00Z', '2001-01-01T00:00:00.000Z']
   for start in starts:
     data, error = supermag.data(userid, 'ABK', start, 60, ignore_cache=ignore_cache)
@@ -28,7 +28,7 @@ def test_start():
     check_output(data, n_records=1, output_file=f"response with start {start}")
 
 
-def test_extent_is_stop():
+def test_extent_is_stop(userid=userid):
   stop = '2001-01-01T00:01Z'
   data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', stop, ignore_cache=ignore_cache)
   assert error is None, f"Expected no error in response for stop {stop}, found: {error}"
@@ -40,7 +40,7 @@ def test_extent_is_stop():
   check_output(data, n_records=10, output_file=f"response with stop {stop}")
 
 
-def test_format():
+def test_format(userid=userid):
   all_formats = {}
   for format in ['json', 'csv', 'dataframe', 'list']:
     data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, format=format, ignore_cache=ignore_cache)
@@ -51,7 +51,7 @@ def test_format():
   check_equivalent(all_formats)
 
 
-def test_options():
+def test_options(userid=userid):
 
   tests = [
     {
@@ -121,7 +121,7 @@ def test_options():
       assert data[r] == expected[r], f"Expected response\n  {expected[r]}\ngot\n  {data[r]}"
 
 
-def test_full_day_request():
+def test_full_day_request(userid=userid):
 
   data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 86400, ignore_cache=ignore_cache)
   assert error is None, f"Expected no error in response, found: {error}"
@@ -130,7 +130,7 @@ def test_full_day_request():
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
 
 
-def test_half_day_request():
+def test_half_day_request(userid=userid):
   n_records = 720
   extent = n_records * 60
   stop = '2001-01-01T11:59:00+00:00'
@@ -142,7 +142,7 @@ def test_half_day_request():
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
 
 
-def test_one_and_half_day_request():
+def test_one_and_half_day_request(userid=userid):
   n_records = 1440 + 720
   extent = n_records * 60
   stop = '2001-01-02T11:59:00+00:00'
@@ -153,3 +153,20 @@ def test_one_and_half_day_request():
   check_output(data, n_records=n_records, output_file="response for multi-day request")
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
 
+if __name__ == "__main__":
+  import sys
+  from supermag.util import logger
+  logger.setLevel('DEBUG')
+
+  args = sys.argv
+  if len(args) == 2:
+    userid = args[1]
+  else:
+    print("Usage: python test_data.py USERID")
+
+    test_default(userid=args[1])
+    test_format(userid=args[1])
+    test_options(userid=args[1])
+    test_full_day_request(userid=args[1])
+    test_half_day_request(userid=args[1])
+    test_one_and_half_day_request(userid=args[1])

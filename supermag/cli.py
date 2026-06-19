@@ -9,7 +9,7 @@ def parse_data_args():
 
   default_cache_dir = CONFIG['common']['output_dir']
 
-  description = 'Fetch SuperMAG station data via data().',
+  description = 'Fetch SuperMAG station data via data().'
 
   epilog = """
   Examples:
@@ -22,11 +22,12 @@ def parse_data_args():
   parser = _parser(description=description, epilog=epilog)
 
   # If these defaults changed, will need to update tests.
+  default_dataset = 'ABK'
   default_start = '2001-01-01T00:00Z'
   default_stop  = '2001-01-01T00:01Z'
 
   _add_arg(parser, "userid")
-  _add_arg(parser, "dataset")
+  _add_arg(parser, "dataset", default_dataset)
   _add_arg(parser, "start", default_start)
   _add_arg(parser, "stop", default_stop)
   parser.add_argument(

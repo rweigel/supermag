@@ -11,13 +11,13 @@ base_cmd = [sys.executable, '-m', 'supermag.data']
 
 tmpdir = tempfile.gettempdir()
 
-def test_help():
+def test_help(userid=userid):
 
   cmd = base_cmd + ['--help']
   _run_test_command(cmd)
 
 
-def test_default():
+def test_default(userid=userid):
   output_file = pathlib.Path(tmpdir) / 'test_default.json'
   _remove(output_file)
 
@@ -31,7 +31,7 @@ def test_default():
   _remove(output_file)
 
 
-def test_format():
+def test_format(userid=userid):
 
   for format in ['json', 'csv', 'dataframe', 'list']:
     ext = ""
@@ -69,6 +69,15 @@ def _run_test_command(cmd):
 
 
 if __name__ == '__main__':
-  test_help()
-  test_default()
-  test_format()
+  from supermag.util import logger
+  logger.setLevel('DEBUG')
+
+  if len(sys.argv) == 2:
+    userid = sys.argv[1]
+  else:
+    print("Usage: python test_data_cli.py USERID")
+    sys.exit(1)
+
+  test_help(userid=userid)
+  test_default(userid=userid)
+  test_format(userid=userid)

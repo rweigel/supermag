@@ -104,12 +104,11 @@ def _dataset_template(dataset_id, inventory_entry):
     'id': dataset_id,
     'title': title,
     'info': {
-      'startDate': None,
-      'stopDate': None,
+      'startDate': inventory_entry['startDate'],
+      'stopDate': inventory_entry['stopDate'],
       'cadence': cadence,
       'description': description,
       'datasetCitation': 'https://supermag.jhuapl.edu/info/?page=rulesoftheroad',
-      'location': None,
       'maxRequestDuration': 'P1Y',
       'parameters': [
         {
@@ -182,46 +181,30 @@ def _dataset_template(dataset_id, inventory_entry):
   from .config import config
   cfg = config('inventory')
 
+  if 'station' in inventory_entry:
+    glat = inventory_entry['station'].get('glat', None)
+    glon = inventory_entry['station'].get('glon', None)
+    if glat is not None and glon is not None:
+      dataset['info']['location'] = [glat, glon]
+
+
+  additionalMetadata = []
   if station_info is not None:
-    dataset['info']['additionalMetadata'] = {
+    additionalMetadata.append({
       "name": "Magnetometer Station Information",
       "content": station_info,
       "contentURL": cfg['station_info_url'],
       "aboutURL": cfg['station_info_url']
-    }
+    })
 
+  location_info = inventory_entry.get('location', {})
+  if location_info is not None:
+    if location_info['geo_location_changed']:
+      additionalMetadata.append({
+        "name": "Location Details",
+        "content": location_info
+      })
+
+
+  dataset['info']['additionalMetadata'] = additionalMetadata
   return dataset
-
-
-def _set_location_info(entry, dataset):
-
-  location = entry['location']
-  error_start = location['start'].get('error', None)
-  error_stop = location['stop'].get('error', None)
-
-  missing_location_warning = (
-    'Use the dataset parameters glat and glon for per-record geographic location. '
-    'See additionalMetadata/locationDeterminationDetails for details.'
-  )
-
-  if location['geo_location_changed'] is None:
-    missing_location_warning = f"Station location metadata is not available on startDate and/or stopDate. {missing_location_warning}"
-    dataset['info']['warning'] = [missing_location_warning]
-
-  if location['geo_location_changed'] is True:
-    missing_location_warning = f"Station location changed during the time period covered by this dataset. {missing_location_warning}"
-    dataset['info']['warning'] = [missing_location_warning]
-
-  if location['geo_location_changed'] is not None:
-    if not error_start:
-      dataset['info']['location'] = [location['start']['glat'], location['stop']['glon']]
-    elif not error_stop:
-      dataset['info']['location'] = [location['stop']['glat'], location['stop']['glon']]
-
-  if location['geo_location_changed'] is not False:
-    location_metadata = {
-      'name': 'locationDeterminationDetails',
-      'content': location
-    }
-    dataset['info']['additionalMetadata'].append(location_metadata)
-

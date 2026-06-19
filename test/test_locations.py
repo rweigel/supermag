@@ -38,6 +38,8 @@ if __name__ == "__main__":
 
   args = sys.argv
   if len(args) == 2:
-    test_short(userid=args[1])
+    userid = args[1]
   else:
     print("Usage: python test_locations.py USERID")
+
+  test_short(userid=args[1])
