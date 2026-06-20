@@ -163,7 +163,10 @@ def write_files(data,
         file_type: data,
       }
   else:
-    output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}.json'
+    if start is not None or stop is not None:
+      output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}-{start_label}-{stop_label}.json'
+    else:
+      output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}.json'
     archive_path = None
     payload = data
 

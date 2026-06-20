@@ -131,6 +131,7 @@ def parse_inventory_args():
   _add_arg(parser, "station-id")
   _add_arg(parser, "update-inventory")
   _add_arg(parser, "update-locations")
+  _add_arg(parser, "print")
   _add_arg(parser, "cafile")
   _add_arg(parser, "debug")
 
@@ -168,6 +169,7 @@ def parse_location_args():
     action='store_true',
     help='Refetch location data even when cached location information found.',
   )
+  _add_arg(parser, "print")
   _add_arg(parser, "cafile")
   _add_arg(parser, "debug")
 
@@ -201,11 +203,7 @@ def parse_catalog_args():
   _add_arg(parser, "output-dir")
   _add_arg(parser, "update-inventory")
   _add_arg(parser, "update-locations")
-  parser.add_argument(
-    '--no-print',
-    action='store_true',
-    help='Do not print catalog JSON to console.',
-  )
+  _add_arg(parser, "print")
   parser.add_argument(
     '--debug',
     action='store_true',
@@ -309,11 +307,10 @@ def main_inventory():
   }
 
   from .inventory import inventory
-  inventory(args.userid, args.start, args.stop, **kwargs)
+  inventory_dict = inventory(args.userid, args.start, args.stop, **kwargs)
 
-  if args.station_id is None:
-    import pathlib
-    _move_logs('supermag-inventory', pathlib.Path(args.output_dir) / 'inventory')
+  _print_json_if_requested(inventory_dict, args.print, args.station_id)
+  _move_logs('supermag-inventory', args, kind='inventory')
 
 
 def main_locations():
@@ -329,11 +326,10 @@ def main_locations():
   }
 
   from .locations import locations
-  locations(args.userid, **kwargs)
+  locations_dict = locations(args.userid, **kwargs)
 
-  if args.station_id is None:
-    import pathlib
-    _move_logs('supermag-locations', pathlib.Path(args.output_dir) / 'inventory')
+  _print_json_if_requested(locations_dict, args.print, args.station_id)
+  _move_logs('supermag-locations', args, kind='locations')
 
 
 def main_catalog():
@@ -351,13 +347,9 @@ def main_catalog():
   from .catalog import catalog
   catalog_dict = catalog(args.userid, **kwargs)
 
-  if args.dataset is None:
-    import pathlib
-    _move_logs('supermag-catalog', pathlib.Path(args.output_dir) / 'catalog')
+  _move_logs('supermag-catalog', args, kind='catalog')
 
-  if not args.no_print:
-    import json
-    print(json.dumps(catalog_dict, indent=2) + '\n')
+  _print_json_if_requested(catalog_dict, args.print, args.dataset)
 
 
 def _parser(description=None, epilog=None):
@@ -384,6 +376,15 @@ def _unwrap_description(text):
   ]
   paragraphs = [paragraph for paragraph in paragraphs if paragraph]
   return '\n\n'.join(paragraphs)
+
+
+def _print_json_if_requested(data, print_arg, selector_arg):
+  should_print = (print_arg is True) or (print_arg is None and selector_arg is not None)
+  if not should_print:
+    return
+
+  import json
+  print(json.dumps(data, indent=2) + '\n')
 
 
 def _add_arg(parser, arg, default=None):
@@ -450,11 +451,41 @@ def _add_arg(parser, arg, default=None):
       default=default,
       help=f'"indices" or IAGA magnetometer station ID (e.g., "BOU"). Default: {default}.',
     )
+  if arg == "print":
+    parser.add_argument(
+      '--print',
+      action='store_true',
+      default=None,
+      help='Print JSON to console. Default: print only when --station-id or --dataset is given.',
+    )
 
 
-def _move_logs(log_prefix, output_dir):
+def _move_logs(log_prefix, args, kind):
   import shutil
   import pathlib
+
+  if kind == 'inventory':
+    from .util import data_range
+    default_start, default_stop = data_range()
+    partial = args.station_id is not None or args.start != default_start or args.stop != default_stop
+    start_label = args.start if args.start != default_start else None
+    stop_label = args.stop if args.stop != default_stop else None
+    suffix = _selector_suffix(station_id=args.station_id, start=start_label, stop=stop_label)
+    subdir = 'inventory'
+  elif kind == 'locations':
+    partial = args.station_id is not None
+    suffix = _selector_suffix(station_id=args.station_id)
+    subdir = 'inventory'
+  elif kind == 'catalog':
+    partial = args.dataset is not None or args.start is not None or args.stop is not None
+    suffix = _selector_suffix(dataset=args.dataset, start=args.start, stop=args.stop)
+    subdir = 'catalog'
+  else:
+    raise ValueError(f'Unknown log kind: {kind}')
+
+  output_dir = pathlib.Path(args.output_dir) / subdir
+  if partial:
+    output_dir = output_dir / 'partial'
 
   # Rename log prefix by removing 'supermag-' prefix from log file names
   log_files = [f'{log_prefix}.log', f'{log_prefix}.error.log']
@@ -464,6 +495,19 @@ def _move_logs(log_prefix, output_dir):
     dst_name = log_file
     if dst_name.startswith('supermag-'):
       dst_name = dst_name[len('supermag-'):]
+
+    if suffix:
+      if dst_name.endswith('.error.log'):
+        base = dst_name[:-len('.error.log')]
+        ext = '.error.log'
+      elif dst_name.endswith('.log'):
+        base = dst_name[:-len('.log')]
+        ext = '.log'
+      else:
+        base = dst_name
+        ext = ''
+      dst_name = f'{base}-{suffix}{ext}'
+
     dst = cwd / dst_name
     if src.exists() and src != dst:
       shutil.move(str(src), str(dst))
@@ -471,3 +515,17 @@ def _move_logs(log_prefix, output_dir):
 
   from .util import move_log_files
   move_log_files(log_files, output_dir, archive=True)
+
+
+def _selector_suffix(station_id=None, dataset=None, start=None, stop=None):
+  import re
+
+  values = [station_id, dataset, start, stop]
+  values = [str(v) for v in values if v not in [None, '']]
+  if len(values) == 0:
+    return None
+
+  def clean(value):
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', value)
+
+  return '-'.join(clean(v) for v in values)
