@@ -1,0 +1,121 @@
+2026-06-20T00:49:35.563421Z DEBUG check_hapi_names_old data() called with arguments:
+2026-06-20T00:49:35.563512Z DEBUG check_hapi_names_old   userid: superhapi
+2026-06-20T00:49:35.563539Z DEBUG check_hapi_names_old   stationid: indices
+2026-06-20T00:49:35.563556Z DEBUG check_hapi_names_old   start: 2001-01-01T00:00:00Z
+2026-06-20T00:49:35.563568Z DEBUG check_hapi_names_old   extent: 60
+2026-06-20T00:49:35.563579Z DEBUG check_hapi_names_old   baseline: none
+2026-06-20T00:49:35.563589Z DEBUG check_hapi_names_old   delta: none
+2026-06-20T00:49:35.563600Z DEBUG check_hapi_names_old   format: json
+2026-06-20T00:49:35.563609Z DEBUG check_hapi_names_old   cadence: PT1M
+2026-06-20T00:49:35.563621Z DEBUG check_hapi_names_old   cache: True
+2026-06-20T00:49:35.563630Z DEBUG check_hapi_names_old   ignore_cache: False
+2026-06-20T00:49:35.563640Z DEBUG check_hapi_names_old   cache_dir: supermag-data
+2026-06-20T00:49:35.563650Z DEBUG check_hapi_names_old   cafile: None
+2026-06-20T00:49:35.565089Z DEBUG check_hapi_names_old Cache hit: supermag-data/indices/PT1M/2001-01-01.json.pkl
+2026-06-20T00:49:35.793187Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.793265Z INFO  check_hapi_names_old api name (hapi if differs)		sample value
+2026-06-20T00:49:35.793295Z INFO  check_hapi_names_old tval                		978307200.0
+2026-06-20T00:49:35.793313Z INFO  check_hapi_names_old SME                 		79.815826
+2026-06-20T00:49:35.793326Z INFO  check_hapi_names_old SML                 		-31.068104
+2026-06-20T00:49:35.793340Z INFO  check_hapi_names_old SMLmlat             		65.585945
+2026-06-20T00:49:35.793350Z INFO  check_hapi_names_old SMLmlt              		12.456332
+2026-06-20T00:49:35.793360Z INFO  check_hapi_names_old SMLglat             		65.120003
+2026-06-20T00:49:35.793370Z INFO  check_hapi_names_old SMLglon             		212.570007
+2026-06-20T00:49:35.793381Z INFO  check_hapi_names_old SMLstid             		PKR
+2026-06-20T00:49:35.793393Z INFO  check_hapi_names_old SMU                 		48.747719
+2026-06-20T00:49:35.793404Z INFO  check_hapi_names_old SMUmlat             		71.190208
+2026-06-20T00:49:35.793416Z INFO  check_hapi_names_old SMUmlt              		16.950655
+2026-06-20T00:49:35.793426Z INFO  check_hapi_names_old SMUglat             		61.110001
+2026-06-20T00:49:35.793436Z INFO  check_hapi_names_old SMUglon             		265.950012
+2026-06-20T00:49:35.793444Z INFO  check_hapi_names_old SMUstid             		EKP
+2026-06-20T00:49:35.793456Z INFO  check_hapi_names_old SMEnum (NUM)        		107
+2026-06-20T00:49:35.793467Z INFO  check_hapi_names_old SMEs                		38.89687
+2026-06-20T00:49:35.793476Z INFO  check_hapi_names_old SMLs                		-31.068104
+2026-06-20T00:49:35.793485Z INFO  check_hapi_names_old SMLsmlat            		65.585945
+2026-06-20T00:49:35.793495Z INFO  check_hapi_names_old SMLsmlt             		12.456332
+2026-06-20T00:49:35.793506Z INFO  check_hapi_names_old SMLsglat            		65.120003
+2026-06-20T00:49:35.793517Z INFO  check_hapi_names_old SMLsglon            		212.570007
+2026-06-20T00:49:35.793525Z INFO  check_hapi_names_old SMLsstid            		PKR
+2026-06-20T00:49:35.793534Z INFO  check_hapi_names_old SMUs                		7.828766
+2026-06-20T00:49:35.793542Z INFO  check_hapi_names_old SMUsmlat            		67.629333
+2026-06-20T00:49:35.793552Z INFO  check_hapi_names_old SMUsmlt             		15.1895
+2026-06-20T00:49:35.793563Z INFO  check_hapi_names_old SMUsglat            		60.029999
+2026-06-20T00:49:35.793574Z INFO  check_hapi_names_old SMUsglon            		248.070007
+2026-06-20T00:49:35.793585Z INFO  check_hapi_names_old SMUsstid            		SMI
+2026-06-20T00:49:35.793596Z INFO  check_hapi_names_old SMEsnum (NUMs)      		23
+2026-06-20T00:49:35.793607Z INFO  check_hapi_names_old SMEd                		70.919853
+2026-06-20T00:49:35.793618Z INFO  check_hapi_names_old SMLd                		-22.172136
+2026-06-20T00:49:35.793629Z INFO  check_hapi_names_old SMLdmlat            		55.106819
+2026-06-20T00:49:35.793639Z INFO  check_hapi_names_old SMLdmlt             		18.96764
+2026-06-20T00:49:35.793648Z INFO  check_hapi_names_old SMLdglat            		44.700001
+2026-06-20T00:49:35.793670Z INFO  check_hapi_names_old SMLdglon            		285.0
+2026-06-20T00:49:35.793681Z INFO  check_hapi_names_old SMLdstid            		CLK
+2026-06-20T00:49:35.793689Z INFO  check_hapi_names_old SMUd                		48.747719
+2026-06-20T00:49:35.793698Z INFO  check_hapi_names_old SMUdmlat            		71.190208
+2026-06-20T00:49:35.793712Z INFO  check_hapi_names_old SMUdmlt             		16.950655
+2026-06-20T00:49:35.793724Z INFO  check_hapi_names_old SMUdglat            		61.110001
+2026-06-20T00:49:35.793735Z INFO  check_hapi_names_old SMUdglon            		265.950012
+2026-06-20T00:49:35.793746Z INFO  check_hapi_names_old SMUdstid            		EKP
+2026-06-20T00:49:35.793757Z INFO  check_hapi_names_old SMEdnum (NUMd)      		84
+2026-06-20T00:49:35.793773Z INFO  check_hapi_names_old SMEr                		[25.079533, 25.079533, 14.855151, 8.266268, 0.954725, 1.988777, 4.226311, 2.237534, 8.578823, 2.904356, 3.217274, 28.985071, 28.985071, 33.79277, 16.223173, 73.084045, 73.084045, 73.084045, 38.0597, 38.0597, 15.843305, 13.428686, 14.654479, 23.619356]
+2026-06-20T00:49:35.793792Z INFO  check_hapi_names_old SMLr                		[-18.713591, -18.713591, -8.489209, -7.516882, -2.24508, -2.24508, -2.24508, -0.256302, -6.597591, -6.597591, -6.597591, -31.068104, -31.068104, -31.068104, -8.394406, -24.33633, -24.33633, -24.33633, -22.172136, -22.172136, -10.772444, -10.772444, -10.772444, -18.713591]
+2026-06-20T00:49:35.793808Z INFO  check_hapi_names_old SMLrmlat            		[51.123123, 51.123123, 54.379826, 76.252113, 73.9142, 73.9142, 73.9142, 47.42268, 65.13237, 65.13237, 65.13237, 65.585945, 65.585945, 65.585945, 64.488319, 60.581474, 60.581474, 60.581474, 55.106819, 55.106819, 76.768417, 76.768417, 76.768417, 51.123123]
+2026-06-20T00:49:35.793825Z INFO  check_hapi_names_old SMLrmlt             		[0.068651, 0.068651, 1.693486, 2.238887, 5.203318, 5.203318, 5.203318, 6.655612, 9.017282, 9.017282, 9.017282, 12.456332, 12.456332, 12.456332, 15.352034, 16.878881, 16.878881, 16.878881, 18.96764, 18.96764, 21.722643, 21.722643, 21.722643, 0.068651]
+2026-06-20T00:49:35.793841Z INFO  check_hapi_names_old SMLrglat            		[53.950001, 53.950001, 58.259998, 78.919998, 79.300003, 79.300003, 79.300003, 52.169998, 70.620003, 70.620003, 70.620003, 65.120003, 65.120003, 65.120003, 56.657001, 50.199001, 50.199001, 50.199001, 44.700001, 44.700001, 70.68, 70.68, 70.68, 53.950001]
+2026-06-20T00:49:35.793854Z INFO  check_hapi_names_old SMLrglon            		[358.950012, 358.950012, 26.459999, 11.95, 76.540001, 76.540001, 76.540001, 104.449997, 147.889999, 147.889999, 147.889999, 212.570007, 212.570007, 212.570007, 248.789993, 263.959991, 263.959991, 263.959991, 285.0, 285.0, 307.869995, 307.869995, 307.869995, 358.950012]
+2026-06-20T00:49:35.793868Z INFO  check_hapi_names_old SMLrstid            		['YOR', 'YOR', 'TAR', 'NAL', 'VIZ', 'VIZ', 'VIZ', 'IRT', 'CHD', 'CHD', 'CHD', 'PKR', 'PKR', 'PKR', 'FMC', 'PIN', 'PIN', 'PIN', 'CLK', 'CLK', 'UMQ', 'UMQ', 'UMQ', 'YOR']
+2026-06-20T00:49:35.793884Z INFO  check_hapi_names_old SMUr                		[6.365942, 6.365942, 6.365942, 0.749386, -1.290354, -0.256302, 1.981232, 1.981232, 1.981232, -3.693235, -3.380317, -2.083033, -2.083033, 2.724666, 7.828766, 48.747719, 48.747719, 48.747719, 15.887562, 15.887562, 5.070861, 2.656243, 3.882035, 4.905765]
+2026-06-20T00:49:35.793897Z INFO  check_hapi_names_old SMUrmlat            		[66.365166, 66.365166, 66.365166, 66.30265, 68.7174, 47.42268, 66.077805, 66.077805, 66.077805, 65.455368, 70.265793, 65.255081, 65.255081, 69.494392, 67.629333, 71.190208, 71.190208, 71.190208, 78.980919, 78.980919, 72.807709, 53.560295, 52.834339, 54.90382]
+2026-06-20T00:49:35.793914Z INFO  check_hapi_names_old SMUrmlt             		[1.524366, 1.524366, 1.524366, 2.11565, 5.24758, 6.655612, 7.993807, 7.993807, 7.993807, 10.148545, 11.589797, 12.444133, 12.444133, 14.874518, 15.1895, 16.950655, 16.950655, 16.950655, 18.339479, 18.339479, 19.832441, 20.917023, 23.989025, 0.014672]
+2026-06-20T00:49:35.793928Z INFO  check_hapi_names_old SMUrglat            		[69.300003, 69.300003, 69.300003, 69.760002, 73.529999, 52.169998, 71.589996, 71.589996, 71.589996, 70.080002, 71.32, 64.870003, 64.870003, 62.48, 60.029999, 61.110001, 61.110001, 61.110001, 69.300003, 69.300003, 63.75, 47.595001, 55.32, 57.16]
+2026-06-20T00:49:35.793945Z INFO  check_hapi_names_old SMUrglon            		[16.030001, 16.030001, 16.030001, 27.01, 80.699997, 104.449997, 128.919998, 128.919998, 128.919998, 170.899994, 203.380005, 212.139999, 212.139999, 245.518005, 248.070007, 265.950012, 265.950012, 265.950012, 278.200012, 278.200012, 291.480011, 307.322998, 356.799988, 356.320007]
+2026-06-20T00:49:35.793959Z INFO  check_hapi_names_old SMUrstid            		['AND', 'AND', 'AND', 'KEV', 'DIK', 'IRT', 'TIK', 'TIK', 'TIK', 'PBK', 'BRW', 'CMO', 'CMO', 'YKC', 'SMI', 'EKP', 'EKP', 'EKP', 'IGC', 'IGC', 'IQA', 'STJ', 'ESK', 'GML']
+2026-06-20T00:49:35.793971Z INFO  check_hapi_names_old SMErnum (NUMr)      		[47, 49, 31, 8, 2, 3, 4, 2, 3, 3, 4, 4, 5, 7, 12, 18, 17, 16, 11, 10, 13, 11, 16, 25]
+2026-06-20T00:49:35.793980Z INFO  check_hapi_names_old smr                 		-0.299946
+2026-06-20T00:49:35.793992Z INFO  check_hapi_names_old smr00               		2.898204
+2026-06-20T00:49:35.794003Z INFO  check_hapi_names_old smr06               		-5.227397
+2026-06-20T00:49:35.794013Z INFO  check_hapi_names_old smr12               		-5.604221
+2026-06-20T00:49:35.794022Z INFO  check_hapi_names_old smr18               		6.733629
+2026-06-20T00:49:35.794034Z INFO  check_hapi_names_old smrnum              		64
+2026-06-20T00:49:35.794044Z INFO  check_hapi_names_old smrnum00            		23
+2026-06-20T00:49:35.794055Z INFO  check_hapi_names_old smrnum06            		16
+2026-06-20T00:49:35.794066Z INFO  check_hapi_names_old smrnum12            		13
+2026-06-20T00:49:35.794077Z INFO  check_hapi_names_old smrnum18            		12
+2026-06-20T00:49:35.794089Z INFO  check_hapi_names_old bgse                		{'X': -3.26, 'Y': 0.7, 'Z': 0.52}
+2026-06-20T00:49:35.794102Z INFO  check_hapi_names_old bgsm                		{'X': -3.26, 'Y': 0.53, 'Z': 0.69}
+2026-06-20T00:49:35.794114Z INFO  check_hapi_names_old vgse                		{'X': 999999.0, 'Y': 999999.0, 'Z': 999999.0}
+2026-06-20T00:49:35.794125Z INFO  check_hapi_names_old vgsm                		{'X': 999999.0, 'Y': 999999.0, 'Z': 999999.0}
+2026-06-20T00:49:35.794134Z INFO  check_hapi_names_old clockgse            		36.607071
+2026-06-20T00:49:35.794143Z INFO  check_hapi_names_old clockgsm            		52.471558
+2026-06-20T00:49:35.794154Z INFO  check_hapi_names_old density             		999999.0
+2026-06-20T00:49:35.794165Z INFO  check_hapi_names_old dynpres (pdyn)      		999999.0
+2026-06-20T00:49:35.794175Z INFO  check_hapi_names_old epsilon             		999999.0
+2026-06-20T00:49:35.794186Z INFO  check_hapi_names_old newell              		999999.0
+2026-06-20T00:49:35.794198Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794211Z INFO  check_hapi_names_old --- indices_all (70 params) ---
+2026-06-20T00:49:35.794237Z INFO  check_hapi_names_old   In HAPI indices_all but not in API response: ['NUM', 'NUMd', 'NUMr', 'NUMs', 'ltnum', 'ltsmr', 'pdyn']
+2026-06-20T00:49:35.794249Z INFO  check_hapi_names_old   After mapping: ['ltnum', 'ltsmr']
+2026-06-20T00:49:35.794261Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794273Z INFO  check_hapi_names_old --- indices_base (9 params) ---
+2026-06-20T00:49:35.794290Z INFO  check_hapi_names_old   In HAPI indices_base but not in API response: ['GLAT', 'GLON', 'MLAT', 'MLT', 'NUM', 'STID']
+2026-06-20T00:49:35.794300Z INFO  check_hapi_names_old   After mapping: ['GLAT', 'GLON', 'MLAT', 'MLT', 'STID']
+2026-06-20T00:49:35.794311Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794323Z INFO  check_hapi_names_old --- indices_dark (14 params) ---
+2026-06-20T00:49:35.794337Z INFO  check_hapi_names_old   In HAPI indices_dark but not in API response: ['NUMd']
+2026-06-20T00:49:35.794350Z INFO  check_hapi_names_old   After mapping: []
+2026-06-20T00:49:35.794361Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794373Z INFO  check_hapi_names_old --- indices_imf (4 params) ---
+2026-06-20T00:49:35.794387Z INFO  check_hapi_names_old   Match: All parameters from indices_imf are in the API response
+2026-06-20T00:49:35.794399Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794410Z INFO  check_hapi_names_old --- indices_reg (14 params) ---
+2026-06-20T00:49:35.794424Z INFO  check_hapi_names_old   In HAPI indices_reg but not in API response: ['NUMr']
+2026-06-20T00:49:35.794433Z INFO  check_hapi_names_old   After mapping: []
+2026-06-20T00:49:35.794444Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794456Z INFO  check_hapi_names_old --- indices_sun (14 params) ---
+2026-06-20T00:49:35.794470Z INFO  check_hapi_names_old   In HAPI indices_sun but not in API response: ['NUMs']
+2026-06-20T00:49:35.794482Z INFO  check_hapi_names_old   After mapping: []
+2026-06-20T00:49:35.794492Z INFO  check_hapi_names_old 
+2026-06-20T00:49:35.794503Z INFO  check_hapi_names_old --- indices_swi (14 params) ---
+2026-06-20T00:49:35.794516Z INFO  check_hapi_names_old   In HAPI indices_swi but not in API response: ['ltnum', 'ltsmr', 'pdyn']
+2026-06-20T00:49:35.794527Z INFO  check_hapi_names_old   After mapping: ['ltnum', 'ltsmr']
+2026-06-20T00:49:35.794539Z INFO  check_hapi_names_old 

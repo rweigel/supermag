@@ -1,0 +1,92 @@
+2026-06-20T00:50:07.128463Z DEBUG check_hapi_names data() called with arguments:
+2026-06-20T00:50:07.128568Z DEBUG check_hapi_names   userid: superhapi
+2026-06-20T00:50:07.128597Z DEBUG check_hapi_names   stationid: indices
+2026-06-20T00:50:07.128615Z DEBUG check_hapi_names   start: 2001-01-01T00:00:00Z
+2026-06-20T00:50:07.128628Z DEBUG check_hapi_names   extent: 60
+2026-06-20T00:50:07.128639Z DEBUG check_hapi_names   baseline: none
+2026-06-20T00:50:07.128651Z DEBUG check_hapi_names   delta: none
+2026-06-20T00:50:07.128661Z DEBUG check_hapi_names   format: json
+2026-06-20T00:50:07.128671Z DEBUG check_hapi_names   cadence: PT1M
+2026-06-20T00:50:07.128682Z DEBUG check_hapi_names   cache: True
+2026-06-20T00:50:07.128692Z DEBUG check_hapi_names   ignore_cache: False
+2026-06-20T00:50:07.128701Z DEBUG check_hapi_names   cache_dir: supermag-data
+2026-06-20T00:50:07.128711Z DEBUG check_hapi_names   cafile: None
+2026-06-20T00:50:07.130356Z DEBUG check_hapi_names Cache hit: supermag-data/indices/PT1M/2001-01-01.json.pkl
+2026-06-20T00:50:07.331246Z INFO  check_hapi_names Parameter keys in API response match HAPI parameter names
+2026-06-20T00:50:07.331313Z INFO  check_hapi_names Sample API response data
+2026-06-20T00:50:07.331338Z INFO  check_hapi_names SME                 		79.815826
+2026-06-20T00:50:07.331353Z INFO  check_hapi_names SML                 		-31.068104
+2026-06-20T00:50:07.331364Z INFO  check_hapi_names SMLmlat             		65.585945
+2026-06-20T00:50:07.331375Z INFO  check_hapi_names SMLmlt              		12.456332
+2026-06-20T00:50:07.331384Z INFO  check_hapi_names SMLglat             		65.120003
+2026-06-20T00:50:07.331393Z INFO  check_hapi_names SMLglon             		212.570007
+2026-06-20T00:50:07.331402Z INFO  check_hapi_names SMLstid             		PKR
+2026-06-20T00:50:07.331411Z INFO  check_hapi_names SMU                 		48.747719
+2026-06-20T00:50:07.331420Z INFO  check_hapi_names SMUmlat             		71.190208
+2026-06-20T00:50:07.331432Z INFO  check_hapi_names SMUmlt              		16.950655
+2026-06-20T00:50:07.331442Z INFO  check_hapi_names SMUglat             		61.110001
+2026-06-20T00:50:07.331452Z INFO  check_hapi_names SMUglon             		265.950012
+2026-06-20T00:50:07.331462Z INFO  check_hapi_names SMUstid             		EKP
+2026-06-20T00:50:07.331472Z INFO  check_hapi_names SMEnum              		107
+2026-06-20T00:50:07.331482Z INFO  check_hapi_names SMEs                		38.89687
+2026-06-20T00:50:07.331493Z INFO  check_hapi_names SMLs                		-31.068104
+2026-06-20T00:50:07.331504Z INFO  check_hapi_names SMLsmlat            		65.585945
+2026-06-20T00:50:07.331513Z INFO  check_hapi_names SMLsmlt             		12.456332
+2026-06-20T00:50:07.331522Z INFO  check_hapi_names SMLsglat            		65.120003
+2026-06-20T00:50:07.331531Z INFO  check_hapi_names SMLsglon            		212.570007
+2026-06-20T00:50:07.331541Z INFO  check_hapi_names SMLsstid            		PKR
+2026-06-20T00:50:07.331552Z INFO  check_hapi_names SMUs                		7.828766
+2026-06-20T00:50:07.331563Z INFO  check_hapi_names SMUsmlat            		67.629333
+2026-06-20T00:50:07.331574Z INFO  check_hapi_names SMUsmlt             		15.1895
+2026-06-20T00:50:07.331585Z INFO  check_hapi_names SMUsglat            		60.029999
+2026-06-20T00:50:07.331596Z INFO  check_hapi_names SMUsglon            		248.070007
+2026-06-20T00:50:07.331607Z INFO  check_hapi_names SMUsstid            		SMI
+2026-06-20T00:50:07.331618Z INFO  check_hapi_names SMEsnum             		23
+2026-06-20T00:50:07.331627Z INFO  check_hapi_names SMEd                		70.919853
+2026-06-20T00:50:07.331636Z INFO  check_hapi_names SMLd                		-22.172136
+2026-06-20T00:50:07.331646Z INFO  check_hapi_names SMLdmlat            		55.106819
+2026-06-20T00:50:07.331658Z INFO  check_hapi_names SMLdmlt             		18.96764
+2026-06-20T00:50:07.331668Z INFO  check_hapi_names SMLdglat            		44.700001
+2026-06-20T00:50:07.331677Z INFO  check_hapi_names SMLdglon            		285.0
+2026-06-20T00:50:07.331688Z INFO  check_hapi_names SMLdstid            		CLK
+2026-06-20T00:50:07.331699Z INFO  check_hapi_names SMUd                		48.747719
+2026-06-20T00:50:07.331717Z INFO  check_hapi_names SMUdmlat            		71.190208
+2026-06-20T00:50:07.331729Z INFO  check_hapi_names SMUdmlt             		16.950655
+2026-06-20T00:50:07.331742Z INFO  check_hapi_names SMUdglat            		61.110001
+2026-06-20T00:50:07.331751Z INFO  check_hapi_names SMUdglon            		265.950012
+2026-06-20T00:50:07.331761Z INFO  check_hapi_names SMUdstid            		EKP
+2026-06-20T00:50:07.331771Z INFO  check_hapi_names SMEdnum             		84
+2026-06-20T00:50:07.331788Z INFO  check_hapi_names SMEr                		[25.079533, 25.079533, 14.855151, 8.266268, 0.954725, 1.988777, 4.226311, 2.237534, 8.578823, 2.904356, 3.217274, 28.985071, 28.985071, 33.79277, 16.223173, 73.084045, 73.084045, 73.084045, 38.0597, 38.0597, 15.843305, 13.428686, 14.654479, 23.619356]
+2026-06-20T00:50:07.331802Z INFO  check_hapi_names SMLr                		[-18.713591, -18.713591, -8.489209, -7.516882, -2.24508, -2.24508, -2.24508, -0.256302, -6.597591, -6.597591, -6.597591, -31.068104, -31.068104, -31.068104, -8.394406, -24.33633, -24.33633, -24.33633, -22.172136, -22.172136, -10.772444, -10.772444, -10.772444, -18.713591]
+2026-06-20T00:50:07.331819Z INFO  check_hapi_names SMLrmlat            		[51.123123, 51.123123, 54.379826, 76.252113, 73.9142, 73.9142, 73.9142, 47.42268, 65.13237, 65.13237, 65.13237, 65.585945, 65.585945, 65.585945, 64.488319, 60.581474, 60.581474, 60.581474, 55.106819, 55.106819, 76.768417, 76.768417, 76.768417, 51.123123]
+2026-06-20T00:50:07.331834Z INFO  check_hapi_names SMLrmlt             		[0.068651, 0.068651, 1.693486, 2.238887, 5.203318, 5.203318, 5.203318, 6.655612, 9.017282, 9.017282, 9.017282, 12.456332, 12.456332, 12.456332, 15.352034, 16.878881, 16.878881, 16.878881, 18.96764, 18.96764, 21.722643, 21.722643, 21.722643, 0.068651]
+2026-06-20T00:50:07.331848Z INFO  check_hapi_names SMLrglat            		[53.950001, 53.950001, 58.259998, 78.919998, 79.300003, 79.300003, 79.300003, 52.169998, 70.620003, 70.620003, 70.620003, 65.120003, 65.120003, 65.120003, 56.657001, 50.199001, 50.199001, 50.199001, 44.700001, 44.700001, 70.68, 70.68, 70.68, 53.950001]
+2026-06-20T00:50:07.331863Z INFO  check_hapi_names SMLrglon            		[358.950012, 358.950012, 26.459999, 11.95, 76.540001, 76.540001, 76.540001, 104.449997, 147.889999, 147.889999, 147.889999, 212.570007, 212.570007, 212.570007, 248.789993, 263.959991, 263.959991, 263.959991, 285.0, 285.0, 307.869995, 307.869995, 307.869995, 358.950012]
+2026-06-20T00:50:07.331875Z INFO  check_hapi_names SMLrstid            		['YOR', 'YOR', 'TAR', 'NAL', 'VIZ', 'VIZ', 'VIZ', 'IRT', 'CHD', 'CHD', 'CHD', 'PKR', 'PKR', 'PKR', 'FMC', 'PIN', 'PIN', 'PIN', 'CLK', 'CLK', 'UMQ', 'UMQ', 'UMQ', 'YOR']
+2026-06-20T00:50:07.331891Z INFO  check_hapi_names SMUr                		[6.365942, 6.365942, 6.365942, 0.749386, -1.290354, -0.256302, 1.981232, 1.981232, 1.981232, -3.693235, -3.380317, -2.083033, -2.083033, 2.724666, 7.828766, 48.747719, 48.747719, 48.747719, 15.887562, 15.887562, 5.070861, 2.656243, 3.882035, 4.905765]
+2026-06-20T00:50:07.331906Z INFO  check_hapi_names SMUrmlat            		[66.365166, 66.365166, 66.365166, 66.30265, 68.7174, 47.42268, 66.077805, 66.077805, 66.077805, 65.455368, 70.265793, 65.255081, 65.255081, 69.494392, 67.629333, 71.190208, 71.190208, 71.190208, 78.980919, 78.980919, 72.807709, 53.560295, 52.834339, 54.90382]
+2026-06-20T00:50:07.331918Z INFO  check_hapi_names SMUrmlt             		[1.524366, 1.524366, 1.524366, 2.11565, 5.24758, 6.655612, 7.993807, 7.993807, 7.993807, 10.148545, 11.589797, 12.444133, 12.444133, 14.874518, 15.1895, 16.950655, 16.950655, 16.950655, 18.339479, 18.339479, 19.832441, 20.917023, 23.989025, 0.014672]
+2026-06-20T00:50:07.331932Z INFO  check_hapi_names SMUrglat            		[69.300003, 69.300003, 69.300003, 69.760002, 73.529999, 52.169998, 71.589996, 71.589996, 71.589996, 70.080002, 71.32, 64.870003, 64.870003, 62.48, 60.029999, 61.110001, 61.110001, 61.110001, 69.300003, 69.300003, 63.75, 47.595001, 55.32, 57.16]
+2026-06-20T00:50:07.331948Z INFO  check_hapi_names SMUrglon            		[16.030001, 16.030001, 16.030001, 27.01, 80.699997, 104.449997, 128.919998, 128.919998, 128.919998, 170.899994, 203.380005, 212.139999, 212.139999, 245.518005, 248.070007, 265.950012, 265.950012, 265.950012, 278.200012, 278.200012, 291.480011, 307.322998, 356.799988, 356.320007]
+2026-06-20T00:50:07.331963Z INFO  check_hapi_names SMUrstid            		['AND', 'AND', 'AND', 'KEV', 'DIK', 'IRT', 'TIK', 'TIK', 'TIK', 'PBK', 'BRW', 'CMO', 'CMO', 'YKC', 'SMI', 'EKP', 'EKP', 'EKP', 'IGC', 'IGC', 'IQA', 'STJ', 'ESK', 'GML']
+2026-06-20T00:50:07.331972Z INFO  check_hapi_names SMErnum             		[47, 49, 31, 8, 2, 3, 4, 2, 3, 3, 4, 4, 5, 7, 12, 18, 17, 16, 11, 10, 13, 11, 16, 25]
+2026-06-20T00:50:07.331981Z INFO  check_hapi_names smr                 		-0.299946
+2026-06-20T00:50:07.331990Z INFO  check_hapi_names smr00               		2.898204
+2026-06-20T00:50:07.332001Z INFO  check_hapi_names smr06               		-5.227397
+2026-06-20T00:50:07.332010Z INFO  check_hapi_names smr12               		-5.604221
+2026-06-20T00:50:07.332020Z INFO  check_hapi_names smr18               		6.733629
+2026-06-20T00:50:07.332029Z INFO  check_hapi_names smrnum              		64
+2026-06-20T00:50:07.332039Z INFO  check_hapi_names smrnum00            		23
+2026-06-20T00:50:07.332049Z INFO  check_hapi_names smrnum06            		16
+2026-06-20T00:50:07.332059Z INFO  check_hapi_names smrnum12            		13
+2026-06-20T00:50:07.332068Z INFO  check_hapi_names smrnum18            		12
+2026-06-20T00:50:07.332079Z INFO  check_hapi_names bgse                		{'X': -3.26, 'Y': 0.7, 'Z': 0.52}
+2026-06-20T00:50:07.332092Z INFO  check_hapi_names bgsm                		{'X': -3.26, 'Y': 0.53, 'Z': 0.69}
+2026-06-20T00:50:07.332102Z INFO  check_hapi_names vgse                		{'X': 999999.0, 'Y': 999999.0, 'Z': 999999.0}
+2026-06-20T00:50:07.332111Z INFO  check_hapi_names vgsm                		{'X': 999999.0, 'Y': 999999.0, 'Z': 999999.0}
+2026-06-20T00:50:07.332124Z INFO  check_hapi_names clockgse            		36.607071
+2026-06-20T00:50:07.332134Z INFO  check_hapi_names clockgsm            		52.471558
+2026-06-20T00:50:07.332144Z INFO  check_hapi_names density             		999999.0
+2026-06-20T00:50:07.332156Z INFO  check_hapi_names dynpres             		999999.0
+2026-06-20T00:50:07.332166Z INFO  check_hapi_names epsilon             		999999.0
+2026-06-20T00:50:07.332176Z INFO  check_hapi_names newell              		999999.0
