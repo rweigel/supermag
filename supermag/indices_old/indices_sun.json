@@ -1,0 +1,37 @@
+{
+    "HAPI": "3.3",
+    "status": {
+        "code": 1200,
+        "message": "OK request successful"
+    },
+    "parameters": [
+        {
+            "length": 24,
+            "name": "Time",
+            "type": "isotime",
+            "units": "UTC",
+            "fill": null
+        },
+	{"name": "SMEs", "type": "double", "units": "nT", "fill": "999999.0", "description": "Sunlit SME indice"},
+	{"name": "SMLs", "type": "double", "units": "nT", "fill": "999999.0", "description": "Sunlit SML indice"},
+	{"name": "SMLsmlat", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice magnetic latitude"},
+	{"name": "SMLsmlt", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice magnetic longitude"},
+	{"name": "SMLsglat", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice geographic latitude"},
+	{"name": "SMLsglon", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice geographic longitude"},
+	{"name": "SMLsstid", "type": "string", "units": null, "length": 3, "fill": "n/a", "description": "IAGA station codes of the stations used to compute the SML Sunlit indice"},
+	{"name": "SMUs", "type": "double", "units": "nT", "fill": "999999.0", "description": "SMU Sunlit indice"},
+	{"name": "SMUsmlat", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice magnetic latitude"},
+	{"name": "SMUsmlt", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice magnetic longitude"},
+	{"name": "SMUsglat", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlit indice geographic latitude"},
+	{"name": "SMUsglon", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SMU Sunlight indice geographic longitude"},
+	{"name": "SMUsstid", "type": "string", "units": null, "length": 3, "fill": "n/a", "description": "IAGA station codes of the stations used to compute the SMU Sunlit indice"},
+	{"name": "NUMs", "type": "integer", "units": "nT", "fill": "999999", "description": "Number of stations used to compute the Sunlit SME indices"}
+    ],
+    "startDate": "1975-01-01T00:00Z",
+    "stopDate": "lastday-P1D",
+    "sampleStartDate": "2018-01-18T00:00Z",
+    "sampleStopDate": "2018-01-19T00:00Z",
+    "cadence": "PT1M",
+    "citation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
+    "description": "The SuperMAG data processing technique, J. W. Gjerloev, https://doi.org/10.1029/2012JA017683\n  This data taken from the Python API, https://supermag.jhuapl.edu/mag/?tab=api&fidelity=low"
+}

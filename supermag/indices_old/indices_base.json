@@ -1,0 +1,32 @@
+{
+    "HAPI": "3.3",
+    "status": {
+        "code": 1200,
+        "message": "OK request successful"
+    },
+    "parameters": [
+        {
+            "length": 24,
+            "name": "Time",
+            "type": "isotime",
+            "fill": null,            
+            "units": "UTC"
+        },
+	{"name": "SME", "type": "double", "units": "nT", "fill": "999999.0", "description": "SME indice"},
+	{"name": "SML", "type": "double", "units": "nT", "fill": "999999.0", "description": "SML indice"},
+	{"name": "SMU", "type": "double", "units": "nT", "fill": "999999.0", "description": "SMU indice"},
+        {"name": "MLAT", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SME indice magnetic latitude"},
+        {"name": "MLT", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SME indice magnetic longitude"},
+        {"name": "GLAT", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SME indice geographic latitude"},
+        {"name": "GLON", "type": "double", "units": "degrees", "fill": "999999.0", "description": "SME indice geographic longitude"},
+	{"name": "STID", "type": "string", "units": "TLA", "fill": "", "length": "3", "description": "IAGA codes for the stations used to compute the SME indice"},
+        {"name": "NUM", "type": "integer", "units": "number of stations", "fill": "", "description": "Number of stations used to compute the SME indices"}
+    ],
+    "startDate": "1975-01-01T00:00Z",
+    "stopDate": "lastday-P1D",
+    "sampleStartDate": "2018-01-18T00:00Z",
+    "sampleStopDate": "2018-01-19T00:00Z",
+    "cadence": "PT1M",
+    "citation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
+    "description": "The SuperMAG data processing technique, J. W. Gjerloev, https://doi.org/10.1029/2012JA017683\n  This data taken from the Python API, https://supermag.jhuapl.edu/mag/?tab=api&fidelity=low"
+}

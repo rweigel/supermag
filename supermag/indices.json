@@ -1,0 +1,614 @@
+{
+  "indices_all": {
+    "parameters": [
+      {
+        "length": 24,
+        "name": "Time",
+        "type": "isotime",
+        "fill": null,
+        "units": "UTC"
+      },
+
+
+      {
+        "name": "SME",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SME index"
+      },
+      {
+        "name": "SMEnum",
+        "type": "integer",
+        "units": null,
+        "description": "Number of stations used to compute the SME index"
+      },
+      {
+        "name": "SML",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SML index"
+      },
+      {
+        "name": "SMLmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML index magnetic latitude"
+      },
+      {
+        "name": "SMLmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML index magnetic local time"
+      },
+      {
+        "name": "SMLglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML index geographic latitude"
+      },
+      {
+        "name": "SMLglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML index geographic longitude"
+      },
+      {
+        "name": "SMLstid",
+        "type": "string",
+        "units": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SML index"
+      },
+      {
+        "name": "SMU",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMU index"
+      },
+      {
+        "name": "SMUmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index magnetic latitude"
+      },
+      {
+        "name": "SMUmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index magnetic local time"
+      },
+      {
+        "name": "SMUglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index geographic latitude"
+      },
+      {
+        "name": "SMUglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index geographic longitude"
+      },
+      {
+        "name": "SMUstid",
+        "type": "string",
+        "units": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SMU index"
+      },
+
+
+      {
+        "name": "SMEs",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SME sunlit index"
+      },
+      {
+        "name": "SMEsnum",
+        "type": "integer",
+        "units": null,
+        "fill": "999999",
+        "description": "Number of stations used to compute the SME sunlit index"
+      },
+      {
+        "name": "SMLs",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SML sunlit index"
+      },
+      {
+        "name": "SMLsmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML sunlit index magnetic latitude"
+      },
+      {
+        "name": "SMLsmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML sunlit index magnetic local time"
+      },
+      {
+        "name": "SMLsglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML sunlit index geographic latitude"
+      },
+      {
+        "name": "SMLsglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML sunlit index geographic longitude"
+      },
+      {
+        "name": "SMLsstid",
+        "type": "string",
+        "units": null,
+        "fill": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SML sunlit index"
+      },
+      {
+        "name": "SMUs",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMU sunlit index"
+      },
+      {
+        "name": "SMUsmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU sunlit index magnetic latitude"
+      },
+      {
+        "name": "SMUsmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU sunlit index magnetic local time"
+      },
+      {
+        "name": "SMUsglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index geographic latitude"
+      },
+      {
+        "name": "SMUsglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU index geographic longitude"
+      },
+      {
+        "name": "SMUsstid",
+        "type": "string",
+        "units": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SMU sunlit index"
+      },
+
+
+      {
+        "name": "SMEd",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SME dark index"
+      },
+      {
+        "name": "SMEdnum",
+        "type": "integer",
+        "units": null,
+        "description": "Number of stations used to compute the SME dark index"
+      },
+      {
+        "name": "SMLd",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SML dark index"
+      },
+      {
+        "name": "SMLdmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML dark index magnetic latitude"
+      },
+      {
+        "name": "SMLdmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML dark index magnetic local time"
+      },
+      {
+        "name": "SMLdglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML dark index geographic latitude"
+      },
+      {
+        "name": "SMLdglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SML dark index geographic longitude"
+      },
+      {
+        "name": "SMLdstid",
+        "type": "string",
+        "units": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SML dark index"
+      },
+      {
+        "name": "SMUd",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMU dark index"
+      },
+      {
+        "name": "SMUdmlat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU dark index magnetic latitude"
+      },
+      {
+        "name": "SMUdmlt",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU dark index magnetic local time"
+      },
+      {
+        "name": "SMUdglat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU dark geographic latitude"
+      },
+      {
+        "name": "SMUdglon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "SMU dark geographic longitude"
+      },
+      {
+        "name": "SMUdstid",
+        "type": "string",
+        "units": null,
+        "length": "3",
+        "description": "IAGA code for the stations used to compute the SMU dark index"
+      },
+
+
+      {
+        "name": "SMEr",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SME index"
+      },
+      {
+        "name": "SMErnum",
+        "type": "integer",
+        "units": "nT",
+        "size": [
+          24
+        ],
+        "fill": "999999",
+        "description": "Number of stations used to compute the Regional SME index"
+      },
+      {
+        "name": "SMLr",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SML index"
+      },
+      {
+        "name": "SMLrmlat",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SML index magnetic latitude"
+      },
+      {
+        "name": "SMLrmlt",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SML index magnetic local time"
+      },
+      {
+        "name": "SMLrglat",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SML index geographic latitude"
+      },
+      {
+        "name": "SMLrglon",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SML index geographic longitude"
+      },
+      {
+        "name": "SMLrstid",
+        "type": "string",
+        "units": null,
+        "length": 3,
+        "size": [
+          24
+        ],
+        "fill": "n/a",
+        "description": "IAGA station codes of the stations used to compute the regional SML index"
+      },
+      {
+        "name": "SMUr",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SMU index"
+      },
+      {
+        "name": "SMUrmlat",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SMU index magnetic latitude"
+      },
+      {
+        "name": "SMUrmlt",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SMU index magnetic longitude"
+      },
+      {
+        "name": "SMUrglat",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SMU index geographic latitude"
+      },
+      {
+        "name": "SMUrglon",
+        "type": "double",
+        "units": "degrees",
+        "size": [
+          24
+        ],
+        "fill": "999999.0",
+        "description": "Regional SMU index geographic longitude"
+      },
+      {
+        "name": "SMUrstid",
+        "type": "string",
+        "units": null,
+        "length": 3,
+        "size": [
+          24
+        ],
+        "description": "IAGA station codes of the stations used to compute the regional SMU indices"
+      },
+
+
+      {
+        "name": "smr",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR index"
+      },
+      {
+        "name": "smrnum",
+        "type": "integer",
+        "units": "",
+        "size": [
+          4
+        ],
+        "fill": "999999",
+        "description": "Number of stations used to compute the SMR indices, as arrays smrnum00, smrnum06, smrnum12, smrnum18"
+      },
+      {
+        "name": "smr00",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-00 index"
+      },
+      {
+        "name": "smr06",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-06 index"
+      },
+      {
+        "name": "smr12",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-12 index"
+      },
+      {
+        "name": "smr18",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-18 index"
+      },
+      {
+        "name": "smrnum00",
+        "type": "int",
+        "units": null,
+        "fill": "999999",
+        "description": "Number of stations used to compute the SMR-00 index"
+      },
+      {
+        "name": "smrnum06",
+        "type": "int",
+        "units": null,
+        "fill": "999999",
+        "description": "Number of stations used to compute the SMR-06 index"
+      },
+      {
+        "name": "smrnum12",
+        "type": "int",
+        "units": null,
+        "fill": "999999",
+        "description": "Number of stations used to compute the SMR-12 index"
+      },
+      {
+        "name": "smrnum18",
+        "type": "int",
+        "units": null,
+        "fill": "999999",
+        "description": "Number of stations used to compute the SMR-18 index"
+      },
+
+
+      {
+        "name": "bgse",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          3
+        ],
+        "fill": "999999.0",
+        "description": "Solar Wind B field (GSE)"
+      },
+      {
+        "name": "bgsm",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          3
+        ],
+        "fill": "999999.0",
+        "description": "Solar Wind B field (GSM)"
+      },
+      {
+        "name": "vgse",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          3
+        ],
+        "fill": "999999.0",
+        "description": "Solar WInd V (GSE)"
+      },
+      {
+        "name": "vgsm",
+        "type": "double",
+        "units": "nT",
+        "size": [
+          3
+        ],
+        "fill": "999999.0",
+        "description": "Solar Wind V (GSM)"
+      },
+      {
+        "name": "clockgse",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "IMG Clock Angle (GSE)"
+      },
+      {
+        "name": "clockgsm",
+        "type": "double",
+        "units": "degrees",
+        "fill": "999999.0",
+        "description": "IMF Clock Angle (GSM)"
+      },
+      {
+        "name": "density",
+        "type": "double",
+        "units": "mA/cm^2",
+        "fill": "999999.0",
+        "description": "Solar Wind Plasma Density"
+      },
+      {
+        "name": "dynpres",
+        "type": "double",
+        "units": "mA/cm^2",
+        "fill": "999999.0",
+        "description": "Solar Wind Dynamic Pressure"
+      },
+      {
+        "name": "epsilon",
+        "type": "double",
+        "units": "GW",
+        "fill": "999999.0",
+        "description": "Solar Wind \u03b5"
+      },
+      {
+        "name": "newell",
+        "type": "double",
+        "units": "Wb/s",
+        "fill": "999999.0",
+        "description": "Solar Wind Newell parameter"
+      }
+    ]
+  }
+}

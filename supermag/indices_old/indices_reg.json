@@ -1,0 +1,37 @@
+{
+    "HAPI": "3.3",
+    "status": {
+        "code": 1200,
+        "message": "OK request successful"
+    },
+    "parameters": [
+        {
+            "length": 24,
+            "name": "Time",
+            "type": "isotime",
+            "units": "UTC",
+            "fill": null
+        },
+	{"name": "SMEr", "type": "double", "units": "nT", "size": [24], "fill": "999999.0", "description": "Regional SME indice"},
+	{"name": "SMLr", "type": "double", "units": "nT", "size": [24], "fill": "999999.0", "description": "Regional SML indice"},
+	{"name": "SMLrmlat", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SML indice magnetic latitude"},
+	{"name": "SMLrmlt", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SML indice magnetic longitude"},
+	{"name": "SMLrglat", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SML indice geographic latitude"},
+	{"name": "SMLrglon", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SML indice geographic longitude"},
+	{"name": "SMLrstid", "type": "string", "units": null, "length": 3, "size": [24], "fill": "n/a", "description": "IAGA station codes of the stations used to compute the regional SML indice"},
+	{"name": "SMUr", "type": "double", "units": "nT", "size": [24], "fill": "999999.0", "description": "Regional SMU indice"},
+	{"name": "SMUrmlat", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "Regional SMU indice magnetic latitude": "tbd"},
+	{"name": "SMUrmlt", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SMU indice magnetic longitude"},
+	{"name": "SMUrglat", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SMU indice geographic latitude"},
+	{"name": "SMUrglon", "type": "double", "units": "degrees", "size": [24], "fill": "999999.0", "description": "Regional SMU indice geographic longitude"},
+	{"name": "SMUrstid", "type": "string", "units": null, "length": 3, "size": [24], "fill": "n/a", "description": "IAGA station codes of the stations used to compute the regional SMU indice"},
+	{"name": "NUMr", "type": "integer", "units": "nT", "size": [24], "fill": "999999", "description": "Number of stations used to compute the Regional SME indice"}
+    ],
+    "startDate": "1975-01-01T00:00Z",
+    "stopDate": "lastday-P1D",
+    "sampleStartDate": "2018-01-18T00:00Z",
+    "sampleStopDate": "2018-01-19T00:00Z",
+    "cadence": "PT1M",
+    "citation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
+    "description": "The SuperMAG data processing technique, J. W. Gjerloev, https://doi.org/10.1029/2012JA017683\n  This data taken from the Python API, https://supermag.jhuapl.edu/mag/?tab=api&fidelity=low"
+}

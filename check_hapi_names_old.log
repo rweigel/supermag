@@ -1,0 +1,14 @@
+2026-06-19T23:17:48.578329Z DEBUG check_hapi_names_old data() called with arguments:
+2026-06-19T23:17:48.578472Z DEBUG check_hapi_names_old   userid: superhapi
+2026-06-19T23:17:48.578511Z DEBUG check_hapi_names_old   stationid: indices
+2026-06-19T23:17:48.578532Z DEBUG check_hapi_names_old   start: 2001-01-01T00:00:00Z
+2026-06-19T23:17:48.578547Z DEBUG check_hapi_names_old   extent: 60
+2026-06-19T23:17:48.578560Z DEBUG check_hapi_names_old   baseline: none
+2026-06-19T23:17:48.578572Z DEBUG check_hapi_names_old   delta: none
+2026-06-19T23:17:48.578583Z DEBUG check_hapi_names_old   format: json
+2026-06-19T23:17:48.578594Z DEBUG check_hapi_names_old   cadence: PT1M
+2026-06-19T23:17:48.578607Z DEBUG check_hapi_names_old   cache: True
+2026-06-19T23:17:48.578617Z DEBUG check_hapi_names_old   ignore_cache: False
+2026-06-19T23:17:48.578628Z DEBUG check_hapi_names_old   cache_dir: supermag-data
+2026-06-19T23:17:48.578638Z DEBUG check_hapi_names_old   cafile: None
+2026-06-19T23:17:48.580686Z DEBUG check_hapi_names_old Cache hit: supermag-data/indices/PT1M/2001-01-01.json.pkl
