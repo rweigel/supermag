@@ -73,134 +73,45 @@ def catalog(userid,
 
 def _dataset_template(dataset_id, inventory_entry):
 
-  def join(s):
-    # Join description lines and remove leading/trailing whitespace
-    return ' '.join(line.strip() for line in s.strip().splitlines())
+  import json
+  import pathlib
+
+  # Read catalog.mag.json from the dir of this script
+  _catalog_file = pathlib.Path(__file__).parent / 'catalog.mag.json'
+  with open(_catalog_file) as f:
+    dataset = json.load(f)
+
 
   station_id, cadence, baseline, csys = dataset_id.split('/')
 
   station_info = inventory_entry.get('station', {})
-  name = station_info.get('name', None)
-  if name is None:
-    name = ''
+  station_name = station_info.get('name', None)
+  if station_name is None:
+    station_name = ''
   else:
-    name = f"({name})"
+    station_name = f"({station_name})"
 
-  title = f"""
-  Data from magnetometer station {station_id} {name} {cadence} with baseline removal
-  option '{baseline}'.
-  """
-  title = join(title)
 
-  description = f"""
-  {title} SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form
-  IAGA_ID/CADENCE/BASELINE_OPTION/COORD_SYS, where IAGA_ID is the IAGA station
-  code, CADENCE is the data cadence in ISO 8601 duration format, BASELINE_OPTION
-  is the baseline removal option, and COORD_SYS is the coordinate system. 
-  BASELINE_OPTION is one of 'baseline_none' (no baseline removal), 'baseline_yearly'
-  (yearly trend removed), or 'baseline_all' (yearly trend and daily variation
-  removed). See Gjerloev, 2012 (https://doi.org/10.1029/2012JA017683) for details. 
-  COORD_SYS = 'XYZ' corresponds to geographic coordinates (X=North, Y=East, 
-  Z=vertical down); 'NEZ' corresponds to local geomagnetic coordinates (N=North, 
-  E=East, Z=vertical down). See https://supermag.jhuapl.edu/mag/?tab=description
-  for additional details and a description of the parameters sza, decl, mcolat, 
-  and mlt.
-  """
-  description = join(description)
+  # Populate dataset metadata with the dataset ID, title, and inventory information
+  dataset['id'] = dataset_id
+  dataset['title'] = dataset['title'].format(station_id=station_id, station_name=station_name, cadence=cadence, baseline=baseline)
+  dataset['info']['startDate'] = inventory_entry["startDate"]
+  dataset['info']['stopDate'] = inventory_entry["stopDate"]
+  dataset['info']['cadence'] = cadence
+  dataset['info']['description'] = dataset['info']['description'].format(title=dataset['title'])
 
-  note = """
-  The location given in this metadata is the first valid glat, glon of the 
-  station found by requesting data on startDate. If this does not match the 
-  location on the last valid glat, glon on stopDate, then this JSON response 
-  will include a warning. In this case, the location of the station must be 
-  obtained from the dataset parameters glat and glon.
-  """
-  note = join(note)
 
-  description_field = 'Field_Vector components X, Y, and Z, correspond to the '
-  if csys == 'NEZ':
-    description_field += 'local geomagnetic North, East, and vertically down directions'
-  elif csys == 'XYZ':
-    description_field += 'geographic North, East, and vertically down directions'
+  # Update the Field_Vector description based on the coordinate system
+  Field_Vector = dataset['info']['parameters'][1]
+  if csys == 'XYZ':
+    Field_Vector['description'] =Field_Vector['description_XYZ']
+  elif csys == 'NEZ':
+    Field_Vector['description'] = Field_Vector['description_NEZ']
+  del Field_Vector['description_XYZ']
+  del Field_Vector['description_NEZ']
 
-  dataset = {
-    'id': dataset_id,
-    'title': title,
-    'info': {
-      'startDate': inventory_entry['startDate'],
-      'stopDate': inventory_entry['stopDate'],
-      'cadence': cadence,
-      'description': description,
-      'datasetCitation': 'https://supermag.jhuapl.edu/info/?page=rulesoftheroad',
-      'maxRequestDuration': 'P1Y',
-      'parameters': [
-        {
-          "length": 24,
-          "name": "Time",
-          "type": "isotime",
-          "units": "UTC"
-        },
-        {
-          "name": "Field_Vector",
-          "description": description_field,
-          "type": "double",
-          "units": "nT",
-          "fill": "999999.0",
-          "size": [
-            3
-          ],
-          "label": [
-            "X",
-            "Y",
-            "Z"
-          ]
-        },
-        {
-          "name": "mlt",
-          "type": "double",
-          "units": "hours",
-          "fill": None,
-          "description": "magnetic local time in fractional hours"
-        },
-        {
-          "name": "mcolat",
-          "type": "double",
-          "units": "degrees",
-          "fill": None,
-          "description": "magnetic colatitude in degrees"
-        },
-        {
-          "name": "sza",
-          "type": "double",
-          "units": "degrees",
-          "fill": None,
-          "description": "solar zenith angle in degrees"
-        },
-        {
-          "name": "decl",
-          "type": "double",
-          "units": "degrees",
-          "fill": "0",
-          "description": "time-averaged declination in degrees"
-        },
-        {
-          "name": "glon",
-          "type": "double",
-          "units": "degrees",
-          "fill": "0",
-          "description": "geographic longitude in degrees"
-        },
-        {
-          "name": "glat",
-          "type": "double",
-          "units": "degrees",
-          "fill": "0",
-          "description": "geographic latitude in degrees"
-        }
-      ]
-    }
-  }
 
+  # Add geographic location information
   from .config import config
   cfg = config('inventory')
 
@@ -211,6 +122,7 @@ def _dataset_template(dataset_id, inventory_entry):
       dataset['info']['location'] = [glat, glon]
 
 
+  # Add additional metadata
   additionalMetadata = []
   if station_info is not None:
     additionalMetadata.append({
@@ -220,6 +132,7 @@ def _dataset_template(dataset_id, inventory_entry):
       "aboutURL": cfg['station_info_url']
     })
 
+  # Add additional location metadata
   location_info = inventory_entry.get('location', {})
   if location_info is not None:
     if location_info['geo_location_changed']:

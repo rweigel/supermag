@@ -477,32 +477,18 @@
         "description": "SMR-00 index"
       },
       {
-        "name": "smr06",
-        "type": "double",
-        "units": "nT",
-        "fill": "999999.0",
-        "description": "SMR-06 index"
-      },
-      {
-        "name": "smr12",
-        "type": "double",
-        "units": "nT",
-        "fill": "999999.0",
-        "description": "SMR-12 index"
-      },
-      {
-        "name": "smr18",
-        "type": "double",
-        "units": "nT",
-        "fill": "999999.0",
-        "description": "SMR-18 index"
-      },
-      {
         "name": "smrnum00",
         "type": "int",
         "units": null,
         "fill": "999999",
         "description": "Number of stations used to compute the SMR-00 index"
+      },
+      {
+        "name": "smr06",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-06 index"
       },
       {
         "name": "smrnum06",
@@ -512,11 +498,25 @@
         "description": "Number of stations used to compute the SMR-06 index"
       },
       {
+        "name": "smr12",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-12 index"
+      },
+      {
         "name": "smrnum12",
         "type": "int",
         "units": null,
         "fill": "999999",
         "description": "Number of stations used to compute the SMR-12 index"
+      },
+      {
+        "name": "smr18",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "description": "SMR-18 index"
       },
       {
         "name": "smrnum18",
@@ -550,7 +550,7 @@
       {
         "name": "vgse",
         "type": "double",
-        "units": "nT",
+        "units": "km/s",
         "size": [
           3
         ],
@@ -560,7 +560,7 @@
       {
         "name": "vgsm",
         "type": "double",
-        "units": "nT",
+        "units": "km/s",
         "size": [
           3
         ],

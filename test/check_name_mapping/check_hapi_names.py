@@ -11,7 +11,7 @@ if userid is None:
 logger.setLevel("DEBUG")
 
 # Parameter names from indices.json
-indices_hapi = json.loads(pathlib.Path('../../supermag/indices.json').read_text())
+indices_hapi = json.loads(pathlib.Path('../../supermag/catalog.indices.json').read_text())
 hapi_names = [
   p['name']
   for p in indices_hapi['indices_all']['parameters']

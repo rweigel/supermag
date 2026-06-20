@@ -1,0 +1,78 @@
+{
+  "id": null,
+  "title": "Data from magnetometer station {station_id} {station_name} {cadence} with baseline removal option '{baseline}'.",
+  "info": {
+    "startDate": null,
+    "stopDate": null,
+    "cadence": null,
+    "description": "{title} SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form IAGA_ID/CADENCE/BASELINE_OPTION/COORD_SYS, where IAGA_ID is the IAGA station code, CADENCE is the data cadence in ISO 8601 duration format, BASELINE_OPTION is the baseline removal option, and COORD_SYS is the coordinate system. BASELINE_OPTION is one of 'baseline_none' (no baseline removal), 'baseline_yearly' (yearly trend removed), or 'baseline_all' (yearly trend and daily variation removed). See Gjerloev, 2012 (https://doi.org/10.1029/2012JA017683) for details. COORD_SYS = 'XYZ' corresponds to geographic coordinates (X=North, Y=East, Z=vertical down); 'NEZ' corresponds to local geomagnetic coordinates (N=North, E=East, Z=vertical down). See https://supermag.jhuapl.edu/mag/?tab=description for additional details and a description of the parameters sza, decl, mcolat, and mlt.",
+    "datasetCitation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
+    "maxRequestDuration": "P1Y",
+    "parameters": [
+      {
+        "length": 24,
+        "name": "Time",
+        "type": "isotime",
+        "units": "UTC"
+      },
+      {
+        "name": "Field_Vector",
+        "description_NEZ": "Magnetic field components X, Y, and Z, correspond to the local geomagnetic North, East, and vertically down directions",
+        "description_XYZ": "Magnetic field components X, Y, and Z, correspond to geographic North, East, and vertically down directions",
+        "type": "double",
+        "units": "nT",
+        "fill": "999999.0",
+        "size": [
+          3
+        ],
+        "label": [
+          "X",
+          "Y",
+          "Z"
+        ]
+      },
+      {
+        "name": "mlt",
+        "type": "double",
+        "units": "hours",
+        "fill": null,
+        "description": "magnetic local time in fractional hours"
+      },
+      {
+        "name": "mcolat",
+        "type": "double",
+        "units": "degrees",
+        "fill": null,
+        "description": "magnetic colatitude in degrees"
+      },
+      {
+        "name": "sza",
+        "type": "double",
+        "units": "degrees",
+        "fill": null,
+        "description": "solar zenith angle in degrees"
+      },
+      {
+        "name": "decl",
+        "type": "double",
+        "units": "degrees",
+        "fill": "0",
+        "description": "time-averaged declination in degrees"
+      },
+      {
+        "name": "glon",
+        "type": "double",
+        "units": "degrees",
+        "fill": "0",
+        "description": "geographic longitude in degrees"
+      },
+      {
+        "name": "glat",
+        "type": "double",
+        "units": "degrees",
+        "fill": "0",
+        "description": "geographic latitude in degrees"
+      }
+    ]
+  }
+}
