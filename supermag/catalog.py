@@ -68,6 +68,16 @@ def catalog(userid,
     else:
       raise ValueError("No HAPI datasets found")
 
+  kwargs = {
+    'start': start,
+    'stop': stop,
+    'station_id': station_id,
+    'partial_inventory': filter,
+    'file_type': 'catalog'
+  }
+  from .util import write_files
+  write_files(catalog, output_dir, **kwargs)
+
   return catalog
 
 
@@ -112,15 +122,13 @@ def _dataset_template(dataset_id, inventory_entry):
 
 
   # Add geographic location information
-  from .config import config
-  cfg = config('inventory')
-
   if 'station' in inventory_entry:
     glat = inventory_entry['station'].get('glat', None)
     glon = inventory_entry['station'].get('glon', None)
     if glat is not None and glon is not None:
       dataset['info']['location'] = [glat, glon]
-
+    else:
+      del dataset['info']['location']
 
   # Add additional metadata
   additionalMetadata = []
@@ -128,18 +136,17 @@ def _dataset_template(dataset_id, inventory_entry):
     additionalMetadata.append({
       "name": "Magnetometer Station Information",
       "content": station_info,
-      "contentURL": cfg['station_info_url'],
-      "aboutURL": cfg['station_info_url']
+      "contentURL": CONFIG['inventory']['station_info_url'],
+      "aboutURL": CONFIG['inventory']['station_info_url_desc']
     })
 
   # Add additional location metadata
   location_info = inventory_entry.get('location', {})
   if location_info is not None:
-    if location_info['geo_location_changed']:
-      additionalMetadata.append({
-        "name": "Location Details",
-        "content": location_info
-      })
+    additionalMetadata.append({
+      "name": "Location Details",
+      "content": location_info
+    })
 
   dataset['info']['additionalMetadata'] = additionalMetadata
 

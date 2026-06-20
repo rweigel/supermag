@@ -75,11 +75,13 @@ def data(userid, stationid, start, extent,
   # Preserve the originally requested extent for sub-setting
   extent_requested = extent
 
-  # When caching, always fetch all extra parameters and a full day
+  # When caching, always fetch until the end of the last day.
   if cache:
     seconds_per_day = 60 * 60 * 24
     # round up to full day(s)
     extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
+
+  start = start[0:10]
 
   # Try to load from cache
   if cache and not ignore_cache:
@@ -115,9 +117,18 @@ def data(userid, stationid, start, extent,
   if error is not None:
     return None, error
 
-   # Cache the full response before sub-setting, so we have the full data available in cache for future requests.
+   # Cache the full response before sub-setting, so we have the full data
+   # available in cache for future requests.
   if cache:
-    _cache_write(data_json, cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+    write_error = False
+    try:
+      _cache_write(data_json, cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+    except Exception as e:
+      write_error = True
+      logger.error(f"Failed to write cache for {stationid}: {e}")
+    if not write_error:
+      logger.debug(f"Cache write successful for {stationid}")
+
     data_json = _subset(data_json, start, extent_requested)
 
   if format == 'json':
@@ -295,6 +306,8 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
   else:
     cache_dir = pathlib.Path(cache_dir)
 
+  cache_dir = cache_dir / 'cache'
+
   if stationid == 'indices':
     sub_dir = pathlib.Path(f'indices/{cadence}')
     return cache_dir / sub_dir
@@ -363,8 +376,27 @@ def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1
 
 def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=None):
   """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
+  import os
   import pickle
   from datetime import datetime, timezone
+
+  def _atomic_pickle_write(path, obj):
+    # TODO: Write gzip-compressed pickle files (reduces file size by factor of 3)
+    import secrets
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_ext = f".{secrets.token_hex(3)}.tmp"
+    tmp_path = path.with_suffix(path.suffix + tmp_ext)
+    try:
+      with tmp_path.open('wb') as f:
+        pickle.dump(obj, f)
+      os.replace(tmp_path, path)
+    except Exception:
+      try:
+        tmp_path.unlink()
+      except OSError:
+        pass
+      raise
 
   if not data_json:
     return
@@ -379,19 +411,25 @@ def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   for date_str, rows in days.items():
+
+    logger.debug("Writing cache for data with ")
+    logger.debug(f"  first timestamp: {rows[0]['tval_iso']}")
+    logger.debug(f"  last timestamp:  {rows[-1]['tval_iso']}")
+    logger.debug(f"  number of records: {len(rows)}")
+
     # Write JSON chunk
+    # TODO: Don't write redundant JSON. Write only dataframe and then convert 
+    # to JSON if needed.
     rows = _reformat(rows, format='json')
     cache_json_file = cache_dir / f'{date_str}.json.pkl'
-    with cache_json_file.open('wb') as f:
-      pickle.dump(rows, f)
+    _atomic_pickle_write(cache_json_file, rows)
     logger.debug(f"Wrote: {cache_json_file}")
 
     # Write dataframe chunk
     try:
       df = _reformat(rows, format='dataframe')
       cache_df_file = cache_dir / f'{date_str}.dataframe.pkl'
-      with cache_df_file.open('wb') as f:
-        pickle.dump(df, f)
+      _atomic_pickle_write(cache_df_file, df)
       logger.debug(f"Wrote: {cache_df_file}")
     except Exception as error:
       logger.debug(f"Failed to write dataframe cache for {date_str}: {error}")

@@ -51,7 +51,7 @@ def parse_data_args():
   parser.add_argument(
     '--no-cache',
     action='store_true',
-    help='Do not write or read cache.'
+    help='Do not write or read cache. (Default is to request data from 00:00:00Z on date of start through 23:59:59Z on date of stop.)'
   )
   parser.add_argument(
     '--ignore-cache',
@@ -103,6 +103,8 @@ def parse_data_args():
 
 
 def parse_inventory_args():
+  import inspect
+  from .inventory import inventory
 
   from .util import data_range
   default_start, default_stop = data_range()
@@ -117,11 +119,8 @@ def parse_inventory_args():
       supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory --update-locations --userid USERID
   """
 
-  description = """
-  Fetch daily SuperMAG inventories from 1970-01-01 through tomorrow (UTC) and create inventory.json file with list of available dates for each station.
-
-  If --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial
-  """
+  description = _unwrap_description(inspect.getdoc(inventory))
+  description += "\n\nIf --station-id, --start, or --stop is given, output is written to OUTPUT_DIR/partial."
 
   parser = _parser(description=description, epilog=epilog)
 
@@ -143,12 +142,9 @@ def parse_inventory_args():
 
 
 def parse_location_args():
-
-  description = (
-  "Reads inventory file and fetches data on each station's first and last"
-  "available day to get geographic latitude and longitude. Writes results"
-  "to locations.json."
-  )
+  import inspect
+  from .locations import locations
+  description = _unwrap_description(inspect.getdoc(locations))
 
   epilog = """
   Examples:
@@ -264,6 +260,7 @@ def main_data():
   if error is not None:
     logger.error(f"Error getting: {error['url']}")
     logger.error(f"Error message: {error['error']}")
+    raise SystemExit(1)
   else:
     ext = args.format
     ext2 = ""
@@ -371,6 +368,22 @@ def _parser(description=None, epilog=None):
     epilog=textwrap.dedent(epilog),
     formatter_class=argparse.RawDescriptionHelpFormatter
   )
+
+
+def _unwrap_description(text):
+  if text is None:
+    return ''
+
+  # Allow docstrings to include internal sections separated by ----
+  # while keeping only the leading summary for CLI help output.
+  text = text.split('----', 1)[0].rstrip()
+
+  paragraphs = [
+    ' '.join(line.strip() for line in block.splitlines() if line.strip())
+    for block in text.split('\n\n')
+  ]
+  paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+  return '\n\n'.join(paragraphs)
 
 
 def _add_arg(parser, arg, default=None):

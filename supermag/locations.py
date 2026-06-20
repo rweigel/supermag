@@ -14,6 +14,13 @@ def locations(userid,
               station_id=None,
               inventory=None,
               cafile=None):
+  """Reads inventory file and fetches station endpoint locations.
+
+  Fetches data on each station's first and last available day to get geographic
+  latitude and longitude, writes results to locations.json, and updates inventory
+  start/stop dates if no data is returned at those endpoints by searching forward
+  from start and backward from stop.
+  """
 
 
   import pathlib
@@ -27,7 +34,7 @@ def locations(userid,
   if inventory is None:
     inventory = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory, output_dir, locations_existing, update, cafile=cafile)
+  locations_new = _fetch_locations(userid, inventory, locations_existing, update, cafile=cafile)
 
   # Merge new locations with existing locations
   if station_id is None:
@@ -47,15 +54,11 @@ def locations(userid,
 
 def _fetch_locations(userid,
                     inventory,
-                    output_dir=CONFIG['common']['output_dir'],
                     existing_locations=None,
                     update=False,
                     cafile=None):
 
   import copy
-
-  from .config import config
-  location_change_threshold = config('inventory')['geo_location_change_threshold']
 
   existing_locations = existing_locations or {}
   existing_locations = copy.deepcopy(existing_locations)
@@ -75,28 +78,23 @@ def _fetch_locations(userid,
       if _has_location(location_start) or _has_location(location_stop):
         logger.debug(f"{station_id} already has location, skipping fetch because update=False.")
         locations[station_id] = existing_location
-
-        # The following is not needed in general, but is here in case the location
-        # match logic is changed in the future.
-        changed = _locations_differ(location_start, location_stop, location_change_threshold)
-        locations[station_id]['geo_location_changed'] = changed
-        locations[station_id]['geo_location_changed_note'] = _locations_differ_note(changed, location_change_threshold)
-
-        _print_location_info(station_id, locations[station_id], threshold=location_change_threshold)
-
+        _location_record_print(station_id, locations[station_id])
         continue
 
-    location_start, error_start = _fetch_location(userid, station_id, start_isodate, "first", update=update)
-    location_stop, error_stop = _fetch_location(userid, station_id, stop_isodate, "last", update=update)
+    args = [userid, station_id, start_isodate, entry, "first", update, cafile]
+    # Will update entry if no data found on start_isodate
+    location_start, error_start = _fetch_location(*args)
+
+    args = [userid, station_id, stop_isodate, entry, "last", update, cafile]
+    # Will update entry if no data found on stop_isodate
+    location_stop, error_stop = _fetch_location(*args)
 
     location_start = _location_record(start_isodate, location_start, error_start)
     location_stop = _location_record(stop_isodate, location_stop, error_stop)
 
     if _has_location(location_start) or _has_location(location_stop):
-      changed = _locations_differ(location_start, location_stop, location_change_threshold)
       locations[station_id] = {
-        'geo_location_changed': changed,
-        'geo_location_changed_note': _locations_differ_note(changed, location_change_threshold),
+        'description': 'Data from the glat and glon parameters on the timestamps given by start and stop.',
         'start': location_start,
         'stop': location_stop,
       }
@@ -109,7 +107,7 @@ def _fetch_locations(userid,
         logger.debug(f"{station_id}, and no existing location found. Adding empty location.")
         locations[station_id] = None
 
-    _print_location_info(station_id, locations[station_id], threshold=location_change_threshold)
+    _location_record_print(station_id, locations[station_id])
 
   return locations
 
@@ -117,9 +115,11 @@ def _fetch_locations(userid,
 def _fetch_location(userid,
                     station_id,
                     isodate,
+                    entry,
                     value='first',
                     update=False,
-                    cafile=None):
+                    cafile=None,
+                    allow_retry=True):
   from .data import data as data
 
   logger.debug("")
@@ -127,14 +127,20 @@ def _fetch_location(userid,
   extent = 60*60*24  # 1 day
   data, error = data(userid, station_id, isodate, extent, ignore_cache=update, cafile=cafile)
 
+  if allow_retry and (error is not None or len(data) == 0):
+    msg = "No data returned for {station_id} on {which} date for obtained from inventory requests."
+    logger.error(msg.format(station_id=station_id, which=value))
+
+    return _fetch_location_retry(userid, station_id, isodate, entry, value, update, cafile)
+
   if error is not None:
     emsg = f"Failed to fetch data for station {station_id} on {isodate}: {error}"
-    logger.debug(emsg)
+    logger.error(emsg)
     return None, emsg
 
   if not isinstance(data, list) or len(data) == 0:
     emsg = f"No data returned for station {station_id} on {isodate}"
-    logger.debug(emsg)
+    logger.error(emsg)
     return None, emsg
 
   if value == "first":
@@ -145,9 +151,56 @@ def _fetch_location(userid,
     raise ValueError(f"Invalid value parameter: {value}. Must be 'first' or 'last'.")
 
   if 'glat' not in first_row or 'glon' not in first_row:
-    return None, f"Missing 'glat' or 'glon' in data for station {station_id} at time {isodate}"
+    emsg = f"Missing 'glat' or 'glon' in data for station {station_id} at time {isodate}"
+    logger.error(emsg)
+    return None, emsg
 
   return (first_row['glat'], first_row['glon']), None
+
+
+def _fetch_location_retry(userid, station_id, isodate, entry, value, update, cafile):
+  """Try alternative days when the primary date returns no data."""
+  from datetime import datetime, timedelta
+
+  # Could do binary search to reduce number of attempts, but for now try and
+  # will report issue to SuperMAG.
+  n_try = 7
+  if value == 'first':
+    day_offsets = range(1, n_try + 1)
+  else:
+    day_offsets = range(-1, -n_try - 1, -1)
+
+  location = None
+  error = None
+  isodate_new = isodate
+  for day_offset in day_offsets:
+    date_new = datetime.strptime(isodate, "%Y-%m-%d")
+    new_date = date_new + timedelta(days=day_offset)
+    isodate_new = new_date.strftime("%Y-%m-%d")
+    logger.info(f"  Trying {isodate_new}")
+    location, error = _fetch_location(userid, station_id, isodate_new, entry, value, update, cafile, allow_retry=False)
+    if error is None and location is not None:
+      if value == 'first':
+        logger.info(f"  Updating start day of first available data from {entry['startDate']} to {isodate_new}")
+        entry['startDate'] = isodate_new
+        entry['startDateExpected'] = isodate
+      else:
+        logger.info(f"  Updating stop day of last available data from {entry['stopDate']} to {isodate_new}")
+        entry['stopDate'] = isodate_new
+        entry['stopDateExpected'] = isodate
+      break
+
+  if error is not None or location is None:
+    if value == 'first':
+      logger.error(f"  Failed to update start date after trying {n_try} days. Updating to last attempted date {isodate_new}")
+      entry['startDateError'] = f"Failed to update start date after trying {n_try} days"
+      entry['startDate'] = isodate_new
+    else:
+      logger.error(f"  Failed to update stop date after trying {n_try} days. Updating to last attempted date {isodate_new}")
+      entry['stopDateError'] = f"Failed to update stop date after trying {n_try} days"
+      entry['stopDate'] = isodate_new
+
+  return location, error
 
 
 def _has_location(location_record):
@@ -174,36 +227,8 @@ def _location_record(isotime, location, error):
   }
 
 
-def _locations_differ_note(differ, threshold):
-  if differ is None:
-    return "Location information is missing"
-  if not differ:
-    return "Reported geographic location on start and stop dates match."
-  else:
-    return f"Reported geographic location on start and stop dates differ by more than {threshold} degrees"
+def _location_record_print(station_id, location_record, threshold=None):
 
-def _locations_differ(start_location, stop_location, threshold=None):
-  if not _has_location(start_location) or not _has_location(stop_location):
-    return None
-
-  if threshold is None:
-    return (
-      start_location.get('glat') != stop_location.get('glat')
-      or
-      start_location.get('glon') != stop_location.get('glon')
-    )
-  else:
-    # If locations match within threshold degrees, count as match
-    lat_adiff = abs(start_location.get('glat') - stop_location.get('glat'))
-    lon_adiff = abs(start_location.get('glon') - stop_location.get('glon'))
-    return lat_adiff > threshold or lon_adiff > threshold
-
-
-def _print_location_info(station_id, location_record, threshold=None):
-
-  if location_record is None:
-    logger.warning(f"  Warning: No location information available for station {station_id}")
-    return
   location_start = location_record.get('start', None)
   location_stop = location_record.get('stop', None)
   start_isodate = (location_start or {}).get('date', '')
@@ -212,17 +237,8 @@ def _print_location_info(station_id, location_record, threshold=None):
   logger.debug(station_id)
   start_msg = f"  Start {start_isodate}: {location_start}"
   stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
-  differ = _locations_differ(location_start, location_stop, threshold=threshold)
-  if differ or differ is None:
-    if differ:
-      logger.warning(f"  Warning: {station_id} has different locations at start and stop times.")
-    else:
-      logger.warning(f"  Warning: {station_id} has missing location at start and/or stop times.")
-    logger.warning(f"  {start_msg}")
-    logger.warning(f"  {stop_msg}")
-  else:
-    logger.debug(start_msg)
-    logger.debug(stop_msg)
+  logger.debug(start_msg)
+  logger.debug(stop_msg)
 
 
 def _read_inventory(output_dir, station_id=None):
@@ -238,6 +254,9 @@ def _read_inventory(output_dir, station_id=None):
     inventory = json.loads(inventory_file.read_text())
   except Exception as error:
     raise ValueError(f"Failed to read inventory file {inventory_file}: {error}")
+
+  if isinstance(inventory, dict) and 'inventory' in inventory:
+    inventory = inventory['inventory']
 
   if not isinstance(inventory, list):
     raise ValueError(f"Inventory file {inventory_file} does not contain a list of stations")

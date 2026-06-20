@@ -19,20 +19,27 @@ def inventory(userid,
               station_id=None,
               cafile=None):
   """
-  Return dict with keys of station id and values of a dict with start/stop dates and additional information
+  Fetch daily SuperMAG inventories and build station-level inventory records.
 
-  Additional information includes the station name, geographic latitude and
-  longitude, station operator, percentage of days with data, and lists of days
-  when data are available.
+  Additional information includes the station name, start and stop dates,
+  geographic latitude and longitude, station operator, percentage of days with
+  data, and lists of days when data are available.
 
-  Note that the returned inventory differs from the inventory API, which returns
-  a only list of station ids given a start and stop date.
+  Note that the returned inventory differs in structure from the inventory API,
+  which returns a only list of station ids given a start and stop date.
+  ----
+
+  Returns a dict with a key 'stations' containing a list where each item contains
+  a station id, start/stop dates, and additional information.
 
   If `include_locations` is `True`, location details beyond geographic location
   are added to each station's information. The details include the stations
   reported location on the start and stop dates, which are determined from the
   glat and glong parameters from a request for data on these dates. This is
   useful for determining of the station location changed significantly.
+
+  Also, `include_locations=True` will result in the start and stop dates being
+  updated if no data are returned or the request fails.
   """
 
   import pathlib
@@ -56,6 +63,11 @@ def inventory(userid,
     partial_inventory = True
   if stop_dt < parse_timestamp(stop_data):
     partial_inventory = True
+
+
+  from .util import path_relative_to_cwd
+  logger.info(f"Output directory: {path_relative_to_cwd(output_dir)}")
+
 
   kwargs = {
     'output_dir': output_dir,
@@ -103,7 +115,8 @@ def inventory(userid,
     'station_id': station_id,
     'partial_inventory': partial_inventory
   }
-  _write_combined_files(inventory_by_station, output_dir, **kwargs)
+  from .util import write_files
+  write_files(inventory_by_station, output_dir, **kwargs)
 
   return inventory_by_station
 
@@ -122,7 +135,7 @@ def get_inventories(start, stop,
     return dt.datetime.strptime(value, '%Y-%m-%d').replace(tzinfo=dt.timezone.utc)
 
   def inventory_file_path(output_dir, start):
-    return output_dir / "inventory" / "daily" / f"{start:%Y-%m-%d}.json"
+    return output_dir / "inventory" / "cache" / f"{start:%Y-%m-%d}.json"
 
   def write_inventory_file(output_dir, start, inventory_data):
     import json
@@ -160,7 +173,7 @@ def get_inventories(start, stop,
 
     # Print info when year changes
     if date.month == 1 and date.day == 1:
-      logger.info(f"Preparing inventory for all days in year {date.year}")
+      logger.info(f"Preparing inventory for days in year {date.year}")
 
     date_str = date.strftime('%Y-%m-%d')
     logger.debug(f"Preparing inventory for {date_str}")
@@ -246,7 +259,7 @@ def _restructure_inventory(inventory):
 
     inventory_r.append(entry)
 
-  logger.info(f"Total station-days: {station_days}")
+  logger.info(f"Total station-days: {station_days} ({station_days} x 200KB/day = {station_days * 100_000/1e9} GB)")
 
   return inventory_r
 
@@ -317,6 +330,7 @@ def _add_location_details(userid, inventory,
     'inventory': inventory,
     'cafile': cafile
   }
+
   location_details = locations(userid, **kwargs)
 
   logger.info(f"Adding {msgo} to inventory entries")
@@ -326,40 +340,71 @@ def _add_location_details(userid, inventory,
 
 
 def _print_summary(inventory):
+
+  def _locations_differ(location_record, threshold=None):
+
+    def _has_location(location_record):
+      if location_record is None or not isinstance(location_record, dict):
+        return False
+      a = location_record.get('glat', None) is not None
+      b = location_record.get('glon', None) is not None
+      return a and b
+
+
+    start_location = location_record.get('start', {})
+    stop_location = location_record.get('stop', {})
+
+    if not _has_location(start_location) or not _has_location(stop_location):
+      return None
+
+    if threshold is None:
+      return (
+        start_location.get('glat') != stop_location.get('glat')
+        or
+        start_location.get('glon') != stop_location.get('glon')
+      )
+    else:
+      # If locations match within threshold degrees, count as match
+      lat_adiff = abs(start_location.get('glat') - stop_location.get('glat'))
+      lon_adiff = abs(start_location.get('glon') - stop_location.get('glon'))
+      return lat_adiff > threshold or lon_adiff > threshold
+
+
   logger.info("Inventory summary:")
   for entry in inventory:
 
     logger.info(f"{entry['id']}: ")
-    logger.info(f"  startDate: {entry['startDate']}")
-    logger.info(f"  stopDate:  {entry['stopDate']}")
+    logger.info("  From inventory requests (and start/stop date updates from location requests):")
+    for key in ['start', 'stop']:
+      msgo = f"    {key}Date: {entry[f'{key}Date']}"
+      if f'{key}DateExpected' in entry:
+        logger.info(f"{msgo} (updated); Expected: {entry[f'{key}DateExpected']}")
+      else:
+        logger.info(msgo)
 
-    n_days = len(_date_range(entry['startDate'], entry['stopDate']))
 
     availability = entry.get('availability', {})
-    unavailable = f"{len(availability.get('unavailable', []))}/{n_days}"
-    unavailable += f" ({100-availability['available_percent']:.1f}%)"
-    logger.info(f"  unavailable: {unavailable}")
+    n_days = len(_date_range(entry['startDate'], entry['stopDate']))
+    available = f"{len(availability.get('available', []))}/{n_days}"
+    available += f" ({availability['available_percent']:.1f}%)"
+    logger.info(f"    Percentage of days available: {available}")
 
 
-    logger.info("  station:")
+    logger.info("  From station information request:")
     if 'station' not in entry:
-      logger.warning("  Warning: station information is missing")
+      logger.warning("    Warning: station information is missing")
       continue
     for key in entry['station']:
       logger.info(f"    {key}: {entry['station'][key]}")
 
-    logger.info("  location:")
-    if entry.get('location', None) is None:
-      logger.warning("  Warning: location information is missing")
-      continue
-    geo_location_changed = entry.get('location', {}).get('geo_location_changed', None)
-    if geo_location_changed is True:
-      logger.warning("  Warning: geographic location changed")
-    elif geo_location_changed is None:
-      logger.warning("  Warning: could not determine if geographic location changed")
 
-    for key in entry['location']:
-      logger.info(f"    {key}: {entry['location'][key]}")
+    if 'location' in entry:
+      threshold = 0.0001 # degrees
+      logger.info("  From data requests:")
+      for key in entry['location']:
+        logger.info(f"    {key}: {entry['location'][key]}")
+      if _locations_differ(entry['location'], threshold=threshold):
+        logger.warn(f"    Location has changed by more than {threshold}° (~10 meters) between start and stop dates")
 
 
 def _date_range(start, stop, format='datetime'):
@@ -380,28 +425,6 @@ def _date_range(start, stop, format='datetime'):
     current += dt.timedelta(days=1)
 
   return dates
-
-
-def _write_combined_files(inventory, output_dir, start, stop, station_id=None, partial_inventory=False):
-
-  import pathlib
-  from .util import write_json_and_archive
-
-  output_dir = pathlib.Path(output_dir)
-
-  output_dir.mkdir(parents=True, exist_ok=True)
-  if station_id is None:
-    if partial_inventory:
-      inventory_file = output_dir / 'inventory' / 'partial' / f'inventory-{start}-{stop}.json'
-      archive_path = None
-    else:
-      inventory_file = output_dir / 'inventory' / 'inventory.json'
-      archive_path = output_dir / 'inventory' / 'archive'
-  else:
-    inventory_file = output_dir / 'inventory'/ 'partial' / f'inventory-{station_id}.json'
-    archive_path = None
-
-  write_json_and_archive(inventory, inventory_file, archive_path)
 
 
 if __name__ == '__main__':

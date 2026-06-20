@@ -27,7 +27,8 @@ def get(url, format='json', cafile=None, retry=1, timeout=30):
   try:
     retries = Retry.from_int(retry)
     http = urllib3.PoolManager(retries=retries, **pool_kwargs)
-    response = http.request('GET', url, timeout=timeout)
+    headers = {'User-Agent': 'supermag-hapi-server'}
+    response = http.request('GET', url, timeout=timeout, headers=headers)
   except Exception as error:
     logger.debug(f"  Failed: {error}")
     return None, f"Error fetching URL: {error}"
@@ -118,6 +119,55 @@ def write_json_and_archive(data, file_path, archive_dir=None):
   with gzip.open(archive_path, 'wt') as stream:
     json.dump(data, stream, indent=2)
     stream.write('\n')
+
+
+def write_files(data,
+                output_dir,
+                start,
+                stop,
+                station_id=None,
+                partial_inventory=False,
+                file_type='inventory'):
+  """Write combined inventory/catalog JSON files and archive full writes.
+
+  For full writes, writes to:
+    - inventory: output_dir/inventory/inventory.json
+    - catalog:   output_dir/catalog/catalog.json
+
+  For partial writes, writes to output_dir/<type>/partial/...
+  and does not archive.
+  """
+  import datetime as dt
+  import pathlib
+
+  output_dir = pathlib.Path(output_dir)
+  output_dir.mkdir(parents=True, exist_ok=True)
+
+  if file_type not in ('inventory', 'catalog'):
+    raise ValueError(f"Invalid file_type: {file_type}")
+
+  start_label = start if start is not None else 'none'
+  stop_label = stop if stop is not None else 'none'
+
+  if station_id is None:
+    if partial_inventory:
+      output_file = output_dir / file_type / 'partial' / f'{file_type}-{start_label}-{stop_label}.json'
+      archive_path = None
+      payload = data
+    else:
+      output_file = output_dir / file_type / f'{file_type}.json'
+      archive_path = output_dir / file_type / 'archive'
+      last_update = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+      payload = {
+        'lastUpdate': last_update,
+        file_type: data,
+      }
+  else:
+    output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}.json'
+    archive_path = None
+    payload = data
+
+  write_json_and_archive(payload, output_file, archive_path)
 
 
 def move_log_files(log_files, dst_dir, archive=False):

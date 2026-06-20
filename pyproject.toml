@@ -7,9 +7,10 @@ name = "supermag"
 version = "0.1.0"
 requires-python = ">=3.8"
 dependencies = [
-  "certifi",
   "pandas",
-  "urllib3"
+  "urllib3",
+  "certifi",
+  "utilrsw @ git+https://github.com/rweigel/utilrsw@main"
 ]
 
 [tool.setuptools.packages.find]
