@@ -26,6 +26,7 @@ def data(userid, stationid, start, extent,
           baseline='none',
           delta='none',
           format='json',
+          parameters=None,
           cadence='PT1M',
           cache=True,
           ignore_cache=False,
@@ -40,18 +41,22 @@ def data(userid, stationid, start, extent,
   from .util import check_userid
   check_userid(userid)
 
-  if format not in ['json', 'list', 'dataframe', 'csv']:
-    raise ValueError(f"Invalid format: {format}. Must be one of: json, list, dataframe, csv.")
+  if format not in ['json', 'list', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
+    raise ValueError(f"Invalid format: {format}. Must be one of: json, list, dataframe, csv, csv-hapi, csv-hapi-noheader.")
 
   if stationid == 'indices':
     baseline = None
     delta = None
+    if parameters is not None:
+      raise ValueError("parameters is not supported for stationid='indices'.")
   else:
     if baseline not in ['yearly', 'all', 'none']:
       raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: yearly, all, none.")
 
     if delta not in ['start', 'none']:
       raise ValueError(f"Invalid delta value: {delta}. Must be one of: start, none.")
+
+    parameters = _normalize_parameters(parameters)
 
   if cadence != 'PT1M':
     raise ValueError(f"Invalid cadence value: {cadence}. Only 'PT1M' (1 minute) is supported.")
@@ -92,6 +97,7 @@ def data(userid, stationid, start, extent,
                                extent,
                                extent_requested,
                                cadence,
+                               parameters=parameters,
                                delta=delta,
                                baseline=baseline)
     if result is not None or error is not None:
@@ -107,8 +113,11 @@ def data(userid, stationid, start, extent,
     options = []
     options.append(f"delta={delta}")
     options.append(f"baseline={baseline}")
+    # Always request the configured full set, then subset as needed.
+    request_parameters = CONFIG['data']['extra_parameters']
     options = '&'.join(options)
-    options += '&' + '&'.join(CONFIG['data']['extra_parameters'])
+    if len(request_parameters) > 0:
+      options += '&' + '&'.join(request_parameters)
 
     url = CONFIG['data']['base_url_data']
     url += f"&{common_params}&station={stationid}&{options}"
@@ -122,7 +131,12 @@ def data(userid, stationid, start, extent,
   if cache:
     write_error = False
     try:
-      _cache_write(data_json, cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+      _cache_write(data_json,
+                   cache_dir,
+                   stationid,
+                   cadence,
+                   delta=delta,
+                   baseline=baseline)
     except Exception as e:
       write_error = True
       logger.error(f"Failed to write cache for {stationid}: {e}")
@@ -130,6 +144,8 @@ def data(userid, stationid, start, extent,
       logger.debug(f"Cache write successful for {stationid}")
 
     data_json = _subset(data_json, start, extent_requested)
+
+  data_json = _subset_parameters(data_json, parameters)
 
   if format == 'json':
     return data_json, None
@@ -180,6 +196,56 @@ def _stop_to_extent(start, extent):
   return extent
 
 
+def _normalize_parameters(parameters):
+  if parameters is None:
+    return None
+
+  if isinstance(parameters, str):
+    values = [token.strip() for token in parameters.split(',')]
+  elif isinstance(parameters, (list, tuple, set)):
+    values = [str(token).strip() for token in parameters]
+  else:
+    raise ValueError("parameters must be None, a comma-separated string, or a list/tuple/set of strings.")
+
+  values = [value for value in values if value != '']
+
+  seen = set()
+  normalized = []
+  for value in values:
+    if value not in seen:
+      seen.add(value)
+      normalized.append(value)
+
+  return normalized
+
+
+def _subset_parameters(data_json, parameters):
+  if parameters is None:
+    return data_json
+
+  # Expand parameter shortcuts, then keep only requested fields plus time keys.
+  field_map = {
+    'mlt': {'mlt', 'mcolat'},
+    'geo': {'glat', 'glon'},
+    'decl': {'decl'},
+    'sza': {'sza'},
+  }
+
+  keep_fields = {'tval_iso', 'tval'}
+  for parameter in parameters:
+    keep_fields.update(field_map.get(parameter, {parameter}))
+
+  filtered = []
+  for row in data_json:
+    row_filtered = {}
+    for key, value in row.items():
+      if key in keep_fields:
+        row_filtered[key] = value
+    filtered.append(row_filtered)
+
+  return filtered
+
+
 def _reformat(data_json, format='json'):
   """Convert json response data to the requested format.
 
@@ -188,8 +254,8 @@ def _reformat(data_json, format='json'):
   """
   from datetime import datetime, timezone
 
-  if format not in ['json', 'list', 'dataframe', 'csv']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'list', 'dataframe', 'csv'.")
+  if format not in ['json', 'list', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
+    raise ValueError("Invalid format. Must be one of: 'json', 'list', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader'.")
 
   if format == 'json':
     result = []
@@ -222,14 +288,20 @@ def _reformat(data_json, format='json'):
 
   import pandas
   df = pandas.DataFrame(data_rows, columns=header)
-  if format == 'csv':
+  if format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
+    if format in ['csv-hapi', 'csv-hapi-noheader'] and 'tval' in df.columns:
+      df = df.drop(columns=['tval'])
+    if format in ['csv-hapi', 'csv-hapi-noheader'] and 'tval_iso' in df.columns:
+      df = df.rename(columns={'tval_iso': 'Time'})
+
     for col in df.columns:
       # Reprocess columns and convert columns with list values to comma-separated strings.
       # E.g., ...,"[66.365166, 66.365166, ...]", "['ABK', 'ABC', ...]", ...
       # =>        "66.365166, 66.365166, ...", "'ABK', 'ABC', ...", ...
       if df[col].apply(lambda x: isinstance(x, list)).any():
         df[col] = df[col].apply(lambda x: ','.join(str(v) for v in x) if isinstance(x, list) else x)
-    return df.to_csv(index=False).rstrip()
+    include_header = format in ['csv', 'csv-hapi']
+    return df.to_csv(index=False, header=include_header).rstrip()
 
   # dataframe: always prepend tval_datetime
   if format == 'dataframe':
@@ -266,7 +338,7 @@ def _subset(data, start, extent):
   return [row for row in data if start_ts <= row['tval'] < stop_ts]
 
 
-def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, cadence, delta=None, baseline=None):
+def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, cadence, parameters=None, delta=None, baseline=None):
 
   if False:
     _locals = locals()
@@ -274,24 +346,37 @@ def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, ca
     for arg in _locals:
       logger.debug(f"  {arg}: {_locals[arg]}")
 
-  if format not in ['json', 'dataframe', 'csv', 'list']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'list'.")
+  if format not in ['json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader', 'list']:
+    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader', 'list'.")
 
-  # csv/list are generated from JSON records.
-  file_ext = 'dataframe' if format == 'dataframe' else 'json'
-  cached = _cache_read(cache_dir, stationid, start, extent, format=file_ext, cadence=cadence, delta=delta, baseline=baseline)
+  # csv/list and parameter-subset dataframe are generated from JSON records.
+  file_ext = 'dataframe' if format == 'dataframe' and parameters is None else 'json'
+  cached = _cache_read(cache_dir,
+                       stationid,
+                       start,
+                       extent,
+                       format=file_ext,
+                       cadence=cadence,
+                       delta=delta,
+                       baseline=baseline)
   if cached is None:
     return None, None
 
   data = _subset(cached, start, extent_requested)
 
-  if format == 'dataframe':
+  if file_ext == 'json':
+    data = _subset_parameters(data, parameters)
+
+  if format == 'dataframe' and file_ext == 'dataframe':
     return data, None
+
+  if format == 'dataframe':
+    return _reformat(data, format='dataframe'), None
 
   return _reformat(data, format=format), None
 
 
-def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
+def _cache_path(cache_dir, stationid, cadence, parameters=None, delta=None, baseline=None):
 
   if False:
     _locals = locals()
@@ -320,7 +405,7 @@ def _cache_path(cache_dir, stationid, cadence, delta=None, baseline=None):
   return cache_path
 
 
-def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1M', delta=None, baseline=None):
+def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1M', parameters=None, delta=None, baseline=None):
   """Return cached data for all day-chunk files spanning [start, start+extent). Returns None if any chunk is missing."""
 
   if False:
@@ -336,7 +421,7 @@ def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1
   if format not in ['json', 'dataframe']:
     raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
 
-  cache_dir = _cache_path(cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+  cache_dir = _cache_path(cache_dir, stationid, cadence, parameters=parameters, delta=delta, baseline=baseline)
 
   # Determine which UTC dates are needed
   start_str = str(start).rstrip('Z').replace(' ', 'T')
@@ -374,7 +459,7 @@ def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1
   return result
 
 
-def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=None):
+def _cache_write(data_json, cache_dir, stationid, cadence, parameters=None, delta=None, baseline=None):
   """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
   import os
   import pickle
@@ -407,7 +492,7 @@ def _cache_write(data_json, cache_dir, stationid, cadence, delta=None, baseline=
     date_str = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%d')
     days.setdefault(date_str, []).append(row)
 
-  cache_dir = _cache_path(cache_dir, stationid, cadence, delta=delta, baseline=baseline)
+  cache_dir = _cache_path(cache_dir, stationid, cadence, parameters=parameters, delta=delta, baseline=baseline)
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   for date_str, rows in days.items():

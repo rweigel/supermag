@@ -1,6 +1,6 @@
 """
 Usage:
-  supermag-locations --help
+  supermag-samples --help
 """
 
 from .util import path_relative_to_cwd, logger
@@ -8,16 +8,16 @@ from .config import config
 
 CONFIG = config()
 
-def locations(userid,
+def samples(userid,
               output_dir=CONFIG['common']['output_dir'],
               update=False,
               station_id=None,
               inventory=None,
               cafile=None):
-  """Reads inventory file and fetches station endpoint locations.
+  """Reads inventory file and fetches station endpoint samples.
 
   Fetches data on each station's first and last available day to get geographic
-  latitude and longitude, writes results to locations.json, and updates inventory
+  latitude and longitude, writes results to samples.json, and updates inventory
   start/stop dates if no data is returned at those endpoints by searching forward
   from start and backward from stop.
   """
@@ -26,90 +26,53 @@ def locations(userid,
   import pathlib
   output_dir = pathlib.Path(output_dir)
 
-  locations_file = output_dir / 'inventory' / 'locations.json'
-
-  # Read existing locations from file if it exists
-  locations_existing = _read_locations(locations_file)
+  samples_file = output_dir / 'inventory' / 'samples.json'
 
   if inventory is None:
     inventory = _read_inventory(output_dir, station_id=station_id)
 
-  locations_new = _fetch_locations(userid, inventory, locations_existing, update, cafile=cafile)
+  samples_data = _fetch_samples(userid, inventory, update, cafile=cafile)
 
-  # Merge new locations with existing locations
-  if station_id is None:
-    logger.debug("Merging existing locations with possibly updated locations.")
-  else:
-    logger.debug(f"Replacing existing location for {station_id} with possibly updated location.")
-  locations_existing.update(locations_new)
-
-  # Write updated locations to file
-  _write_locations(locations_existing, locations_file)
+  _write_samples(samples_data, samples_file)
 
   if station_id is None:
-    return locations_existing
+    return samples_data
   else:
-    return {station_id: locations_existing.get(station_id, None)}
+    return {station_id: samples_data.get(station_id, None)}
 
 
-def _fetch_locations(userid,
+def _fetch_samples(userid,
                     inventory,
-                    existing_locations=None,
                     update=False,
                     cafile=None):
 
-  import copy
-
-  existing_locations = existing_locations or {}
-  existing_locations = copy.deepcopy(existing_locations)
-
-  locations = {}
+  samples = {}
   for entry in inventory:
     station_id = entry['id']
-
-    existing_location = existing_locations.get(station_id)
 
     start_isodate = f"{entry['startDate']}"
     stop_isodate = f"{entry['stopDate']}"
 
-    if not update and existing_location:
-      location_start = existing_location.get('start', {})
-      location_stop = existing_location.get('stop', {})
-      if _has_location(location_start) or _has_location(location_stop):
-        logger.debug(f"{station_id} already has location, skipping fetch because update=False.")
-        locations[station_id] = existing_location
-        _location_record_print(station_id, locations[station_id])
-        continue
-
     args = [userid, station_id, start_isodate, entry, "first", update, cafile]
     # Will update entry if no data found on start_isodate
-    location_start, error_start = _fetch_location(*args)
+    location_start_row, error_start = _fetch_location(*args)
 
     args = [userid, station_id, stop_isodate, entry, "last", update, cafile]
     # Will update entry if no data found on stop_isodate
-    location_stop, error_stop = _fetch_location(*args)
+    location_stop_row, error_stop = _fetch_location(*args)
 
-    location_start = _location_record(start_isodate, location_start, error_start)
-    location_stop = _location_record(stop_isodate, location_stop, error_stop)
+    samples[station_id] = _build_sample_entry(
+      start_isodate,
+      stop_isodate,
+      location_start_row,
+      location_stop_row,
+      error_start,
+      error_stop,
+    )
 
-    if _has_location(location_start) or _has_location(location_stop):
-      locations[station_id] = {
-        'description': 'Data from the glat and glon parameters on the timestamps given by start and stop.',
-        'start': location_start,
-        'stop': location_stop,
-      }
-    else:
-      emsg = f"Failed to fetch location for station {station_id}"
-      if existing_location:
-        logger.debug(f"{emsg}, but existing location found. Keeping existing location.")
-        locations[station_id] = existing_location
-      else:
-        logger.debug(f"{station_id}, and no existing location found. Adding empty location.")
-        locations[station_id] = None
+    _log_sample_entry(station_id, samples[station_id])
 
-    _location_record_print(station_id, locations[station_id])
-
-  return locations
+  return samples
 
 
 def _fetch_location(userid,
@@ -120,14 +83,14 @@ def _fetch_location(userid,
                     update=False,
                     cafile=None,
                     allow_retry=True):
-  from .data import data as data
+  from .data import data as fetch_data
 
   logger.debug("")
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
-  data, error = data(userid, station_id, isodate, extent, ignore_cache=update, cafile=cafile)
+  rows, error = fetch_data(userid, station_id, isodate, extent, ignore_cache=update, cafile=cafile)
 
-  if allow_retry and (error is not None or len(data) == 0):
+  if allow_retry and (error is not None or len(rows) == 0):
     msg = "No data returned for {station_id} on {which} date for obtained from inventory requests."
     logger.error(msg.format(station_id=station_id, which=value))
 
@@ -138,15 +101,15 @@ def _fetch_location(userid,
     logger.error(emsg)
     return None, emsg
 
-  if not isinstance(data, list) or len(data) == 0:
+  if not isinstance(rows, list) or len(rows) == 0:
     emsg = f"No data returned for station {station_id} on {isodate}"
     logger.error(emsg)
     return None, emsg
 
   if value == "first":
-    first_row = data[0]
+    first_row = rows[0]
   elif value == "last":
-    first_row = data[-1]
+    first_row = rows[-1]
   else:
     raise ValueError(f"Invalid value parameter: {value}. Must be 'first' or 'last'.")
 
@@ -155,7 +118,7 @@ def _fetch_location(userid,
     logger.error(emsg)
     return None, emsg
 
-  return (first_row['glat'], first_row['glon']), None
+  return first_row, None
 
 
 def _fetch_location_retry(userid, station_id, isodate, entry, value, update, cafile):
@@ -203,42 +166,68 @@ def _fetch_location_retry(userid, station_id, isodate, entry, value, update, caf
   return location, error
 
 
-def _has_location(location_record):
-  if location_record is None or not isinstance(location_record, dict):
-    return False
-  a = location_record.get('glat', None) is not None
-  b = location_record.get('glon', None) is not None
-  return a and b
+def _build_sample_entry(start_isodate, stop_isodate, start_row, stop_row, start_error, stop_error):
+  return {
+    'location': {
+      'description': 'Data from the glat and glon parameters on the timestamps given by start and stop.',
+      'firstRecord': _location_summary(start_isodate, start_row, start_error),
+      'lastRecord': _location_summary(stop_isodate, stop_row, stop_error),
+    },
+    'sample': {
+      'description': 'Full first and last records from data() on the timestamps given by start and stop.',
+      'firstRecord': _sample_row(start_isodate, start_row, start_error),
+      'lastRecord': _sample_row(stop_isodate, stop_row, stop_error),
+    },
+  }
 
 
-def _location_record(isotime, location, error):
+def _location_summary(isotime, row, error):
   if error is not None:
     return {
       'date': isotime if isotime is not None else '',
       'glat': None,
       'glon': None,
-      'error': error
+      'error': error,
+    }
+
+  if row is None or not isinstance(row, dict):
+    return {
+      'date': isotime,
+      'glat': None,
+      'glon': None,
+      'error': 'No location data returned',
     }
 
   return {
     'date': isotime,
-    'glat': location[0],
-    'glon': location[1]
+    'glat': row.get('glat'),
+    'glon': row.get('glon'),
   }
 
 
-def _location_record_print(station_id, location_record, threshold=None):
+def _sample_row(isotime, row, error):
+  if error is not None:
+    return {
+      'date': isotime if isotime is not None else '',
+      'error': error,
+    }
 
-  location_start = location_record.get('start', None)
-  location_stop = location_record.get('stop', None)
-  start_isodate = (location_start or {}).get('date', '')
-  stop_isodate = (location_stop or {}).get('date', '')
+  if row is None or not isinstance(row, dict):
+    return {
+      'date': isotime,
+      'error': 'No sample data returned',
+    }
 
+  return dict(row)
+
+
+def _log_sample_entry(station_id, sample_entry):
+  location_entry = sample_entry.get('location', {}) if isinstance(sample_entry, dict) else {}
+  start_record = location_entry.get('firstRecord', {})
+  stop_record = location_entry.get('lastRecord', {})
   logger.debug(station_id)
-  start_msg = f"  Start {start_isodate}: {location_start}"
-  stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
-  logger.debug(start_msg)
-  logger.debug(stop_msg)
+  logger.debug(f"  Start {(start_record or {}).get('tval_iso', (start_record or {}).get('date', ''))}: {start_record}")
+  logger.debug(f"  Stop  {(stop_record or {}).get('tval_iso', (stop_record or {}).get('date', ''))}:  {stop_record}")
 
 
 def _read_inventory(output_dir, station_id=None):
@@ -272,36 +261,17 @@ def _read_inventory(output_dir, station_id=None):
   return inventory
 
 
-def _read_locations(output_file):
-  import json
-
-  locations = {}
-  if not output_file.exists():
-    logger.debug(f"No existing locations file found at {output_file}, starting with empty locations.")
-    return locations
-  else:
-    logger.debug(f"Using existing locations from {path_relative_to_cwd(output_file)}")
-
-  logger.debug(f"Reading {output_file}")
-  with output_file.open() as stream:
-    locations = json.load(stream)
-
-  logger.debug(f"  Read {len(locations)} station locations from {output_file}")
-
-  return locations
-
-
-def _write_locations(locations, output_file):
+def _write_samples(samples, output_file):
   import json
 
   output_file.parent.mkdir(parents=True, exist_ok=True)
   with output_file.open('w') as stream:
-    json.dump(locations, stream, indent=2)
+    json.dump(samples, stream, indent=2)
     stream.write('\n')
 
-  logger.debug(f'Wrote {path_relative_to_cwd(output_file)} with {len(locations)} station locations')
+  logger.debug(f'Wrote {path_relative_to_cwd(output_file)} with {len(samples)} station samples')
 
 
 if __name__ == '__main__':
-  from .cli import main_locations
-  main_locations()
+  from .cli import main_samples
+  main_samples()

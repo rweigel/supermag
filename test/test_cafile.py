@@ -33,7 +33,7 @@ def test_data(userid=userid):
   assert data is not None, "No data received"
 
 
-def test_locations(userid=userid):
+def test_samples(userid=userid):
 
   kwargs = {
     'start': '1970-01-01',
@@ -49,16 +49,16 @@ def test_locations(userid=userid):
   }
 
   cafile = None
-  locations = supermag.locations(userid, cafile=cafile, **kwargs)
-  assert locations is not None, "No output"
+  samples = supermag.samples(userid, cafile=cafile, **kwargs)
+  assert samples is not None, "No output"
 
   cafile = 'default'
-  locations = supermag.locations(userid, cafile=cafile, **kwargs)
-  assert locations is not None, "No output"
+  samples = supermag.samples(userid, cafile=cafile, **kwargs)
+  assert samples is not None, "No output"
 
   cafile = cafile_default
-  locations = supermag.locations(userid, cafile=cafile, **kwargs)
-  assert locations is not None, "No output"
+  samples = supermag.samples(userid, cafile=cafile, **kwargs)
+  assert samples is not None, "No output"
 
 
 def test_inventory(userid=userid):
@@ -112,6 +112,6 @@ if __name__ == "__main__":
 
   test_get(userid=args.userid)
   test_data(userid=args.userid)
-  test_locations(userid=args.userid)
+  test_samples(userid=args.userid)
   test_inventory(userid=args.userid)
   test_catalog(userid=args.userid)

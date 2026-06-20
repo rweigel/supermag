@@ -137,6 +137,7 @@ def write_files(data,
   For partial writes, writes to output_dir/<type>/partial/...
   and does not archive.
   """
+  import json
   import datetime as dt
   import pathlib
 
@@ -146,31 +147,69 @@ def write_files(data,
   if file_type not in ('inventory', 'catalog'):
     raise ValueError(f"Invalid file_type: {file_type}")
 
-  start_label = start if start is not None else 'none'
-  stop_label = stop if stop is not None else 'none'
+  stem = _partial_output_stem(file_type=file_type,
+                              station_id=station_id,
+                              start=start,
+                              stop=stop,
+                              partial=partial_inventory)
 
   if station_id is None:
     if partial_inventory:
-      output_file = output_dir / file_type / 'partial' / f'{file_type}-{start_label}-{stop_label}.json'
+      output_file = output_dir / file_type / 'partial' / f'{stem}.json'
       archive_path = None
       payload = data
     else:
       output_file = output_dir / file_type / f'{file_type}.json'
       archive_path = output_dir / file_type / 'archive'
-      last_update = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+      now_ts = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
+
+      # Preserve lastModified when the logical payload has not changed.
+      last_modified = now_ts
+      if output_file.exists():
+        try:
+          existing_payload = json.loads(output_file.read_text())
+          existing_data = None
+          if isinstance(existing_payload, dict):
+            existing_data = existing_payload.get(file_type)
+
+          if existing_data == data:
+            last_modified = (
+              (existing_payload.get('lastModified') if isinstance(existing_payload, dict) else None)
+              or (existing_payload.get('lastUpdate') if isinstance(existing_payload, dict) else None)
+              or now_ts
+            )
+        except Exception:
+          # If existing file cannot be parsed, fall back to current timestamp.
+          last_modified = now_ts
+
       payload = {
-        'lastUpdate': last_update,
+        'lastUpdate': now_ts,
+        'lastModified': last_modified,
         file_type: data,
       }
   else:
-    if start is not None or stop is not None:
-      output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}-{start_label}-{stop_label}.json'
-    else:
-      output_file = output_dir / file_type / 'partial' / f'{file_type}-{station_id}.json'
+    output_file = output_dir / file_type / 'partial' / f'{stem}.json'
     archive_path = None
     payload = data
 
   write_json_and_archive(payload, output_file, archive_path)
+
+
+def _partial_output_stem(file_type, station_id=None, dataset=None, start=None, stop=None, partial=False):
+  import re
+
+  if not partial:
+    return file_type
+
+  values = [station_id, dataset, start, stop]
+  values = [str(value) for value in values if value not in [None, '']]
+  if len(values) == 0:
+    return file_type
+
+  def clean(value):
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', value)
+
+  return '-'.join([file_type] + [clean(value) for value in values])
 
 
 def move_log_files(log_files, dst_dir, archive=False):

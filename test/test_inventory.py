@@ -20,8 +20,12 @@ def test_short(userid=userid):
   found = False
   for item in inventory:
     assert isinstance(item, dict), "Expected each inventory item to be a dictionary"
-    for keys in ['id', 'startDate', 'stopDate', 'station', 'availability', 'location']:
+    for keys in ['id', 'startDate', 'stopDate', 'station', 'availability', 'location', 'sample']:
       assert keys in item, f"Expected each inventory item to have a '{keys}' key"
+    assert 'glat' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
+    assert 'glon' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
+    assert 'tval_iso' in item['sample']['firstRecord'], "Expected sample.firstRecord to contain full data from data()"
+    assert 'tval' in item['sample']['firstRecord'], "Expected sample.firstRecord to contain full data from data()"
     if item['id'] == 'DRV':
       found = True
   assert found, "Expected to find an inventory item with id 'DRV'"

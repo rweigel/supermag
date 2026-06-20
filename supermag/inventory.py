@@ -105,7 +105,7 @@ def inventory(userid,
       'update_locations': update_locations,
       'cafile': cafile
     }
-    _add_location_details(userid, inventory_by_station, **kwargs)
+    _add_sample_details(userid, inventory_by_station, **kwargs)
 
   _print_summary(inventory_by_station)
 
@@ -309,13 +309,13 @@ def _get_station_info(cafile=None):
   return station_info, None
 
 
-def _add_location_details(userid, inventory,
+def _add_sample_details(userid, inventory,
                         station_id=None,
                         output_dir=None,
                         update_locations=False,
                         cafile=None):
 
-  from .locations import locations
+  from .samples import samples
 
   msgo = "geographic locations for each station on start and stop dates"
   if update_locations:
@@ -331,15 +331,29 @@ def _add_location_details(userid, inventory,
     'cafile': cafile
   }
 
-  location_details = locations(userid, **kwargs)
+  location_details = samples(userid, **kwargs)
 
   logger.info(f"Adding {msgo} to inventory entries")
   for entry in inventory:
     if entry['id'] in location_details:
-      entry['location'] = location_details[entry['id']]
+      sample_details = location_details[entry['id']]
+      entry['location'] = sample_details['location']
+      entry['sample'] = sample_details['sample']
 
 
 def _print_summary(inventory):
+
+  def _sample_record_get(location_record, which):
+    if not isinstance(location_record, dict):
+      return {}
+
+    if which == 'first':
+      return location_record.get('firstRecord', {})
+
+    if which == 'last':
+      return location_record.get('lastRecord', {})
+
+    raise ValueError(f"Invalid which value: {which}. Must be 'first' or 'last'.")
 
   def _locations_differ(location_record, threshold=None):
 
@@ -351,8 +365,8 @@ def _print_summary(inventory):
       return a and b
 
 
-    start_location = location_record.get('start', {})
-    stop_location = location_record.get('stop', {})
+    start_location = _sample_record_get(location_record, 'first')
+    stop_location = _sample_record_get(location_record, 'last')
 
     if not _has_location(start_location) or not _has_location(stop_location):
       return None
@@ -398,12 +412,13 @@ def _print_summary(inventory):
       logger.info(f"    {key}: {entry['station'][key]}")
 
 
-    if 'location' in entry:
+    if 'sample' in entry or 'location' in entry:
       threshold = 0.0001 # degrees
       logger.info("  From data requests:")
-      for key in entry['location']:
-        logger.info(f"    {key}: {entry['location'][key]}")
-      if _locations_differ(entry['location'], threshold=threshold):
+      sample_entry = entry.get('location', entry.get('sample', {}))
+      for key in sample_entry:
+        logger.info(f"    {key}: {sample_entry[key]}")
+      if _locations_differ(sample_entry, threshold=threshold):
         logger.warn(f"    Location has changed by more than {threshold}° (~10 meters) between start and stop dates")
 
 

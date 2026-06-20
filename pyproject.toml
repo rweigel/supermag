@@ -10,7 +10,7 @@ dependencies = [
   "pandas",
   "urllib3",
   "certifi",
-  "utilrsw @ git+https://github.com/rweigel/utilrsw@ce8146c"
+  "utilrsw @ git+https://github.com/rweigel/utilrsw@924b7c3"
 ]
 
 [tool.setuptools.packages.find]
@@ -21,4 +21,4 @@ include = ["supermag*"]
 supermag-data      = "supermag.cli:main_data"
 supermag-catalog   = "supermag.cli:main_catalog"
 supermag-inventory = "supermag.cli:main_inventory"
-supermag-locations = "supermag.cli:main_locations"
+supermag-samples = "supermag.cli:main_samples"

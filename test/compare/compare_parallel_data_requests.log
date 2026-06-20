@@ -1,0 +1,18 @@
+2026-06-20T11:09:19.762191Z INFO  compare_parallel_data_requests Params: station=ABK start=2001-01-01 extent=86400 n_par=4 ignore_cache=True
+2026-06-20T11:09:19.762291Z INFO  compare_parallel_data_requests 
+2026-06-20T11:09:19.762323Z INFO  compare_parallel_data_requests Starting 4 serial data requests
+2026-06-20T11:09:20.358536Z INFO  compare_parallel_data_requests serial request=0 status=ok rows=1440 elapsed=0.596s
+2026-06-20T11:09:20.848272Z INFO  compare_parallel_data_requests serial request=1 status=ok rows=1440 elapsed=0.489s
+2026-06-20T11:09:21.399251Z INFO  compare_parallel_data_requests serial request=2 status=ok rows=1440 elapsed=0.551s
+2026-06-20T11:09:21.968510Z INFO  compare_parallel_data_requests serial request=3 status=ok rows=1440 elapsed=0.569s
+2026-06-20T11:09:21.968612Z INFO  compare_parallel_data_requests Serial completed 4 requests: ok=4 error=0 total_elapsed=2.206s
+2026-06-20T11:09:21.968639Z INFO  compare_parallel_data_requests Serial request timing: min=0.489s avg=0.551s max=0.596s
+2026-06-20T11:09:21.968662Z INFO  compare_parallel_data_requests 
+2026-06-20T11:09:21.968682Z INFO  compare_parallel_data_requests Starting 4 parallel data requests
+2026-06-20T11:09:22.504793Z INFO  compare_parallel_data_requests parallel request=2 status=ok rows=1440 elapsed=0.535s
+2026-06-20T11:09:22.505290Z INFO  compare_parallel_data_requests parallel request=0 status=ok rows=1440 elapsed=0.536s
+2026-06-20T11:09:22.505321Z INFO  compare_parallel_data_requests parallel request=3 status=ok rows=1440 elapsed=0.535s
+2026-06-20T11:09:22.549907Z INFO  compare_parallel_data_requests parallel request=1 status=ok rows=1440 elapsed=0.580s
+2026-06-20T11:09:22.550082Z INFO  compare_parallel_data_requests Parallel completed 4 requests: ok=4 error=0 total_elapsed=0.581s
+2026-06-20T11:09:22.550144Z INFO  compare_parallel_data_requests Parallel request timing: min=0.535s avg=0.547s max=0.580s
+2026-06-20T11:09:22.550219Z INFO  compare_parallel_data_requests Summary: serial_total=2.206s parallel_total=0.581s speed-up(serial/parallel)=3.795x

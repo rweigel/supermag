@@ -6,6 +6,7 @@ CONFIG = config()
 
 def parse_data_args():
   import pathlib
+  import sys
 
   default_cache_dir = CONFIG['common']['output_dir']
 
@@ -45,7 +46,7 @@ def parse_data_args():
   parser.add_argument(
     '--format',
     default='json',
-    choices=['json', 'csv', 'list', 'dataframe'],
+    choices=['json', 'csv', 'csv-hapi', 'csv-hapi-noheader', 'list', 'dataframe'],
     help='Output format. Default: json.',
   )
   parser.add_argument(
@@ -64,9 +65,19 @@ def parse_data_args():
     type=pathlib.Path,
     help=f'Base directory for cache storage. Default: {default_cache_dir}.'
   )
+  parser.add_argument(
+    '--parameters',
+    default=None,
+    help='Comma-separated extra parameters for magnetometer data requests (e.g., mlt,geo,decl,sza).'
+  )
   _add_arg(parser, "cafile")
   _add_arg(parser, "debug")
   _add_arg(parser, "output-dir")
+  parser.add_argument(
+    '--print',
+    action='store_true',
+    help='Print output to console instead of writing a file.',
+  )
   parser.add_argument(
     '--output-file',
     default=None,
@@ -98,6 +109,13 @@ def parse_data_args():
       args.cafile = None
     elif args.cafile.lower() == 'default':
       args.cafile = 'default'
+
+  if args.print:
+    if '--output-dir' in sys.argv or '--output-file' in sys.argv:
+      raise ValueError('--print cannot be used with --output-dir or --output-file')
+
+  if args.parameters is not None and args.dataset.lower() == 'indices':
+    raise ValueError('--parameters is not supported when --dataset indices is used')
 
   return args
 
@@ -142,21 +160,21 @@ def parse_inventory_args():
   return args
 
 
-def parse_location_args():
+def parse_samples_args():
   import inspect
-  from .locations import locations
-  description = _unwrap_description(inspect.getdoc(locations))
+  from .samples import samples
+  description = _unwrap_description(inspect.getdoc(samples))
 
   epilog = """
   Examples:
-    Fetch locations for all stations, using cached location data when available:
-      supermag-locations --userid USERID
-    Fetch locations for all stations, refetching location data even when cached data found:
-      supermag-locations --update --userid USERID
-    Fetch location for a single station, using cached location data when available:
-      supermag-locations --station-id ABK --userid USERID
-    Fetch location for a single station, refetching location data even when cached data found:
-      supermag-locations --station-id ABK --update --userid USERID
+    Fetch samples for all stations, using cached sample data when available:
+      supermag-samples --userid USERID
+    Fetch samples for all stations, refetching sample data even when cached data found:
+      supermag-samples --update --userid USERID
+    Fetch sample for a single station, using cached sample data when available:
+      supermag-samples --station-id ABK --userid USERID
+    Fetch sample for a single station, refetching sample data even when cached data found:
+      supermag-samples --station-id ABK --update --userid USERID
   """
 
   parser = _parser(description=description, epilog=epilog)
@@ -220,8 +238,6 @@ def parse_catalog_args():
 def main_data():
   # Called when running `python -m supermag.data` or supermag-data from the command line.
   # Parses command-line arguments, calls data() or indices(), and writes output to a file.
-  import pathlib
-
   from .data import data
   from .data import indices
 
@@ -247,6 +263,7 @@ def main_data():
     kwargs = {
       'baseline': args.baseline,
       'delta': args.delta,
+      'parameters': args.parameters,
       'format': args.format,
       'cache': args.cache,
       'ignore_cache': args.ignore_cache,
@@ -260,36 +277,10 @@ def main_data():
     logger.error(f"Error message: {error['error']}")
     raise SystemExit(1)
   else:
-    ext = args.format
-    ext2 = ""
-    if args.format == 'dataframe' or args.format == 'list':
-      ext2 = '.pkl'
-    if args.output_file is not None:
-      output_file = args.output_file
-    else:
-      if args.dataset.lower() == 'indices':
-        fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-indices.{ext}{ext2}"
-      else:
-        baseline_str = args.baseline if args.baseline is not None else 'none'
-        delta_str = args.delta if args.delta is not None else 'none'
-        fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-baseline_{baseline_str}-delta_{delta_str}.{ext}{ext2}"
-      output_file = pathlib.Path(args.output_dir) / fname
+    if _print_data_if_requested(result, args.print, None, data_format=args.format):
+      return
 
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    if args.format == 'json':
-      import json
-      output_file.write_text(json.dumps(result, indent=2) + '\n')
-    elif args.format == 'csv':
-      output_file.write_text(result + '\n')
-    elif args.format == 'dataframe':
-      result.to_pickle(output_file)
-    elif args.format == 'list':
-      import pickle
-      with output_file.open('wb') as f:
-        pickle.dump(result, f)
-
-    logger.info(f"Wrote {output_file}")
+    _write_file_if_requested(result, args)
 
 
 def main_inventory():
@@ -309,12 +300,12 @@ def main_inventory():
   from .inventory import inventory
   inventory_dict = inventory(args.userid, args.start, args.stop, **kwargs)
 
-  _print_json_if_requested(inventory_dict, args.print, args.station_id)
+  _print_data_if_requested(inventory_dict, args.print, args.station_id)
   _move_logs('supermag-inventory', args, kind='inventory')
 
 
-def main_locations():
-  args = parse_location_args()
+def main_samples():
+  args = parse_samples_args()
 
   if args.debug:
     logger.setLevel("DEBUG")
@@ -325,11 +316,11 @@ def main_locations():
     'update': args.update
   }
 
-  from .locations import locations
-  locations_dict = locations(args.userid, **kwargs)
+  from .samples import samples
+  samples_dict = samples(args.userid, **kwargs)
 
-  _print_json_if_requested(locations_dict, args.print, args.station_id)
-  _move_logs('supermag-locations', args, kind='locations')
+  _print_data_if_requested(samples_dict, args.print, args.station_id)
+  _move_logs('supermag-samples', args, kind='samples')
 
 
 def main_catalog():
@@ -349,7 +340,7 @@ def main_catalog():
 
   _move_logs('supermag-catalog', args, kind='catalog')
 
-  _print_json_if_requested(catalog_dict, args.print, args.dataset)
+  _print_data_if_requested(catalog_dict, args.print, args.dataset)
 
 
 def _parser(description=None, epilog=None):
@@ -378,13 +369,65 @@ def _unwrap_description(text):
   return '\n\n'.join(paragraphs)
 
 
-def _print_json_if_requested(data, print_arg, selector_arg):
+def _print_data_if_requested(data, print_arg, selector_arg=None, data_format='json'):
   should_print = (print_arg is True) or (print_arg is None and selector_arg is not None)
   if not should_print:
-    return
+    return False
 
-  import json
-  print(json.dumps(data, indent=2) + '\n')
+  if data_format == 'json':
+    import json
+    print(json.dumps(data, indent=2) + '\n')
+  elif data_format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
+    print(data + '\n')
+  elif data_format == 'dataframe':
+    print(data)
+  elif data_format == 'list':
+    import pprint
+    print(pprint.pformat(data) + '\n')
+  else:
+    print(data)
+
+  return True
+
+
+def _write_file_if_requested(data, args):
+  import pathlib
+
+  data_format = args.format
+
+  ext = data_format
+  ext2 = ""
+  if data_format == 'dataframe' or data_format == 'list':
+    ext2 = '.pkl'
+
+  if args.output_file is not None:
+    output_file = args.output_file
+  else:
+    if args.dataset.lower() == 'indices':
+      fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-indices.{ext}{ext2}"
+    else:
+      baseline_str = args.baseline if args.baseline is not None else 'none'
+      delta_str = args.delta if args.delta is not None else 'none'
+      fname = f"supermag-{args.dataset}-{args.start}-{args.stop}-baseline_{baseline_str}-delta_{delta_str}.{ext}{ext2}"
+    output_file = pathlib.Path(args.output_dir) / fname
+
+  output_file.parent.mkdir(parents=True, exist_ok=True)
+
+  if data_format == 'json':
+    import json
+    output_file.write_text(json.dumps(data, indent=2) + '\n')
+  elif data_format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
+    output_file.write_text(data + '\n')
+  elif data_format == 'dataframe':
+    data.to_pickle(output_file)
+  elif data_format == 'list':
+    import pickle
+    with output_file.open('wb') as f:
+      pickle.dump(data, f)
+  else:
+    raise ValueError(f"Unsupported data format for file write: {data_format}")
+
+  logger.info(f"Wrote {output_file}")
 
 
 def _add_arg(parser, arg, default=None):
@@ -463,22 +506,18 @@ def _add_arg(parser, arg, default=None):
 def _move_logs(log_prefix, args, kind):
   import shutil
   import pathlib
+  from .util import _partial_output_stem
 
   if kind == 'inventory':
     from .util import data_range
     default_start, default_stop = data_range()
     partial = args.station_id is not None or args.start != default_start or args.stop != default_stop
-    start_label = args.start if args.start != default_start else None
-    stop_label = args.stop if args.stop != default_stop else None
-    suffix = _selector_suffix(station_id=args.station_id, start=start_label, stop=stop_label)
     subdir = 'inventory'
-  elif kind == 'locations':
+  elif kind == 'samples':
     partial = args.station_id is not None
-    suffix = _selector_suffix(station_id=args.station_id)
     subdir = 'inventory'
   elif kind == 'catalog':
     partial = args.dataset is not None or args.start is not None or args.stop is not None
-    suffix = _selector_suffix(dataset=args.dataset, start=args.start, stop=args.stop)
     subdir = 'catalog'
   else:
     raise ValueError(f'Unknown log kind: {kind}')
@@ -490,23 +529,21 @@ def _move_logs(log_prefix, args, kind):
   # Rename log prefix by removing 'supermag-' prefix from log file names
   log_files = [f'{log_prefix}.log', f'{log_prefix}.error.log']
   cwd = pathlib.Path.cwd()
+  partial_stem = _partial_output_stem(
+    file_type=subdir,
+    station_id=getattr(args, 'station_id', None),
+    dataset=getattr(args, 'dataset', None),
+    start=getattr(args, 'start', None),
+    stop=getattr(args, 'stop', None),
+    partial=partial,
+  )
   for i, log_file in enumerate(log_files):
     src = cwd / log_file
-    dst_name = log_file
-    if dst_name.startswith('supermag-'):
-      dst_name = dst_name[len('supermag-'):]
-
-    if suffix:
-      if dst_name.endswith('.error.log'):
-        base = dst_name[:-len('.error.log')]
-        ext = '.error.log'
-      elif dst_name.endswith('.log'):
-        base = dst_name[:-len('.log')]
-        ext = '.log'
-      else:
-        base = dst_name
-        ext = ''
-      dst_name = f'{base}-{suffix}{ext}'
+    if partial:
+      ext = '.error.log' if log_file.endswith('.error.log') else '.log'
+      dst_name = f'{partial_stem}{ext}'
+    else:
+      dst_name = log_file[len('supermag-'):] if log_file.startswith('supermag-') else log_file
 
     dst = cwd / dst_name
     if src.exists() and src != dst:
@@ -514,18 +551,5 @@ def _move_logs(log_prefix, args, kind):
     log_files[i] = dst_name
 
   from .util import move_log_files
-  move_log_files(log_files, output_dir, archive=True)
-
-
-def _selector_suffix(station_id=None, dataset=None, start=None, stop=None):
-  import re
-
-  values = [station_id, dataset, start, stop]
-  values = [str(v) for v in values if v not in [None, '']]
-  if len(values) == 0:
-    return None
-
-  def clean(value):
-    return re.sub(r'[^A-Za-z0-9._-]+', '_', value)
-
-  return '-'.join(clean(v) for v in values)
+  archive_logs = not (kind == 'inventory' and partial)
+  move_log_files(log_files, output_dir, archive=archive_logs)
