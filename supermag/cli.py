@@ -57,7 +57,7 @@ def parse_data_args():
   parser.add_argument(
     '--ignore-cache',
     action='store_true',
-    help='Re-fetch data even if a cache file exists.'
+    help='Re-fetch data even if a cache file exists. Overwrite cache if request successful.'
   )
   parser.add_argument(
     '--cache-dir',
@@ -114,8 +114,8 @@ def parse_data_args():
     if '--output-dir' in sys.argv or '--output-file' in sys.argv:
       raise ValueError('--print cannot be used with --output-dir or --output-file')
 
-  if args.parameters is not None and args.dataset.lower() == 'indices':
-    raise ValueError('--parameters is not supported when --dataset indices is used')
+  if args.parameters is not None:
+    args.parameters = [token.strip() for token in args.parameters.split(',')]
 
   return args
 
@@ -254,7 +254,7 @@ def main_data():
     kwargs = {
       'format': args.format,
       'cache': args.cache,
-      'ignore_cache': args.ignore_cache,
+      'use_cache': not args.ignore_cache,
       'cache_dir': args.cache_dir,
       'cafile': args.cafile
     }
@@ -266,7 +266,7 @@ def main_data():
       'parameters': args.parameters,
       'format': args.format,
       'cache': args.cache,
-      'ignore_cache': args.ignore_cache,
+      'use_cache': not args.ignore_cache,
       'cache_dir': args.cache_dir,
       'cafile': args.cafile
     }
@@ -380,6 +380,11 @@ def _print_data_if_requested(data, print_arg, selector_arg=None, data_format='js
   elif data_format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
     print(data + '\n')
   elif data_format == 'dataframe':
+    if False:
+      columns = list(data.columns)
+      for column in columns:
+        print(f"{column} | type = {data[column].dtype}")
+      print("")
     print(data)
   elif data_format == 'list':
     import pprint

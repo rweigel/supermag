@@ -32,7 +32,7 @@ for file_path in hapi_files:
   hapi_names[key] = [p['name'] for p in val['parameters'] if p['name'] != 'Time']
 
 # Parameter names from a live indices response
-data, error = supermag.indices(userid, '2001-01-01T00:00:00Z', 60, ignore_cache=False)
+data, error = supermag.indices(userid, '2001-01-01T00:00:00Z', 60, use_cache=False)
 assert error is None, f"Error: {error}"
 
 logger.info("")

@@ -4,8 +4,8 @@ from datetime import datetime
 import supermag
 from util import userid, check_output, check_equivalent
 
-# Change to True after this script is complete.
-ignore_cache = True
+# Change to False after this script is complete.
+use_cache = False
 
 """
 TODO:
@@ -15,7 +15,7 @@ TODO:
 
 def test_default(userid=userid):
 
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, use_cache=use_cache)
   assert error is None, f"Expected no error in response, found: {error}"
   check_output(data, n_records=1, output_file="response for default test")
 
@@ -23,19 +23,19 @@ def test_default(userid=userid):
 def test_start(userid=userid):
   starts = ['2001-01-01', '2001-01-01T00Z', '2001-01-01T00:00Z', '2001-01-01T00:00:00.000Z']
   for start in starts:
-    data, error = supermag.data(userid, 'ABK', start, 60, ignore_cache=ignore_cache)
+    data, error = supermag.data(userid, 'ABK', start, 60, use_cache=use_cache)
     assert error is None, f"Expected no error in response for start {start}, found: {error}"
     check_output(data, n_records=1, output_file=f"response with start {start}")
 
 
 def test_extent_is_stop(userid=userid):
   stop = '2001-01-01T00:01Z'
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', stop, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', stop, use_cache=use_cache)
   assert error is None, f"Expected no error in response for stop {stop}, found: {error}"
   check_output(data, n_records=1, output_file=f"response with stop {stop}")
 
   stop = '2001-01-01T00:10Z'
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', stop, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', stop, use_cache=use_cache)
   assert error is None, f"Expected no error in response for stop {stop}, found: {error}"
   check_output(data, n_records=10, output_file=f"response with stop {stop}")
 
@@ -43,7 +43,7 @@ def test_extent_is_stop(userid=userid):
 def test_format(userid=userid):
   all_formats = {}
   for format in ['json', 'csv', 'dataframe', 'list']:
-    data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, format=format, ignore_cache=ignore_cache)
+    data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, format=format, use_cache=use_cache)
     assert error is None, f"Expected no error in response, found: {error}"
     check_output(data, n_records=1, format=format)
     all_formats[format] = data
@@ -113,7 +113,7 @@ def test_options(userid=userid):
     extent = test['options']['extent']
     expected = test['expected']
 
-    data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, delta=delta, baseline=baseline, ignore_cache=ignore_cache)
+    data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, delta=delta, baseline=baseline, use_cache=use_cache)
     if error is not None:
       assert False, f"Expected no error in response, found: {error}"
     for r in range(len(expected)):
@@ -123,7 +123,7 @@ def test_options(userid=userid):
 
 def test_full_day_request(userid=userid):
 
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 86400, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 86400, use_cache=use_cache)
   assert error is None, f"Expected no error in response, found: {error}"
   check_output(data, n_records=1440, output_file="response for multi-day request")
   t_val_last = 978393540.0 # 2001-01-01T23:59:00Z
@@ -136,7 +136,7 @@ def test_half_day_request(userid=userid):
   stop = '2001-01-01T11:59:00+00:00'
   t_val_last = datetime.fromisoformat(stop).timestamp()
 
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, use_cache=use_cache)
   assert error is None, f"Expected no error in response, found: {error}"
   check_output(data, n_records=720, output_file="response for multi-day request")
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"
@@ -148,7 +148,7 @@ def test_one_and_half_day_request(userid=userid):
   stop = '2001-01-02T11:59:00+00:00'
   t_val_last = datetime.fromisoformat(stop).timestamp()
 
-  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, ignore_cache=ignore_cache)
+  data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, use_cache=use_cache)
   assert error is None, f"Expected no error in response, found: {error}"
   check_output(data, n_records=n_records, output_file="response for multi-day request")
   assert data[-1]['tval'] == t_val_last, f"Expected tval {t_val_last} in last row of multi-day response, found {data[0]['tval']}"

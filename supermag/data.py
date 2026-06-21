@@ -4,32 +4,43 @@ from .config import config
 CONFIG = config()
 
 # If true, show response data in debug logs.
-debug_response = True
+DEBUG_RESPONSE = True
 
+CACHE_RAW_JSON = True
 
-def indices(userid, start, extent,
+def indices(userid,
+            start,
+            extent,
+            parameters=None,
             format='json',
             cache=True,
-            ignore_cache=False,
+            use_cache=True,
             cache_dir=CONFIG['common']['output_dir'],
             cafile=None):
 
-  return data(userid, 'indices', start, extent,
+  return data(userid,
+              'indices',
+              start,
+              extent,
+              parameters=parameters,
               format=format,
               cache=cache,
-              ignore_cache=ignore_cache,
+              use_cache=use_cache,
               cache_dir=cache_dir,
               cafile=cafile)
 
 
-def data(userid, stationid, start, extent,
+def data(userid,
+          stationid,
+          start,
+          extent,
           baseline='none',
           delta='none',
           format='json',
           parameters=None,
           cadence='PT1M',
-          cache=True,
-          ignore_cache=False,
+          cache=True,      # If True, cache data
+          use_cache=True,  # If False, request data and cache if cache=True.
           cache_dir=CONFIG['common']['output_dir'],
           cafile=None):
 
@@ -38,41 +49,45 @@ def data(userid, stationid, start, extent,
   for arg in _locals:
     logger.debug(f"  {arg}: {_locals[arg]}")
 
+  # Check inputs
   from .util import check_userid
   check_userid(userid)
 
-  if format not in ['json', 'list', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
-    raise ValueError(f"Invalid format: {format}. Must be one of: json, list, dataframe, csv, csv-hapi, csv-hapi-noheader.")
+  formats = CONFIG['data']['formats']
+  if format not in formats:
+    raise ValueError(f"Invalid format: {format}. Must be one of: {', '.join(formats)}.")
+
+  cadences = CONFIG['data']['cadences']
+  if cadence not in cadences:
+    raise ValueError(f"Invalid cadence value: {cadence}. Must be one of: {', '.join(cadences)}.")
 
   if stationid == 'indices':
-    baseline = None
-    delta = None
-    if parameters is not None:
-      raise ValueError("parameters is not supported for stationid='indices'.")
+    if baseline != 'none':
+      raise ValueError(f"Invalid baseline value for indices: {baseline}. Must be 'none'.")
+    if delta  != 'none':
+      raise ValueError(f"Invalid delta value for indices: {delta}. Must be 'none'.")
   else:
-    if baseline not in ['yearly', 'all', 'none']:
-      raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: yearly, all, none.")
+    baselines = CONFIG['data']['mag']['baselines']
+    if baseline not in baselines:
+      raise ValueError(f"Invalid baseline value: {baseline}. Must be one of: {", ".join(baselines)}.")
 
-    if delta not in ['start', 'none']:
-      raise ValueError(f"Invalid delta value: {delta}. Must be one of: start, none.")
+    deltas = CONFIG['data']['mag']['deltas']
+    if delta not in deltas:
+      """
+      delta=median not supported. It is an option in the table at
+      https://supermag.jhuapl.edu/line/?fidelity=low&start=2001-01-01T00%3A00%3A00.000Z&interval=00%3A05&tab=view&stations=ABK&baseline=none&delta=median
+      but the following request gives the same as delta=none.
+      https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=median&baseline=none&mlt&decl&sza&glat&glon
 
-    parameters = _normalize_parameters(parameters)
+      Also, if 'Subtract median value' is checked (shows only when 'Do Not Remove
+      Any Baseline' is selected), 'Subtract start value' is ignored. To see this,
+      search on 'median' at https://supermag.jhuapl.edu/mag/lib/js/mag.applet.js?l=a
+      So if delta=median, is supported, will need to check that baseline is 'none'
+      and raise an error if not.
+      """
+      raise ValueError(f"Invalid delta value: {delta}. Must be one of: {", ".join(deltas)}.")
 
-  if cadence != 'PT1M':
-    raise ValueError(f"Invalid cadence value: {cadence}. Only 'PT1M' (1 minute) is supported.")
-
-  """
-  delta=median not supported. It is an option in the table at
-  https://supermag.jhuapl.edu/line/?fidelity=low&start=2001-01-01T00%3A00%3A00.000Z&interval=00%3A05&tab=view&stations=ABK&baseline=none&delta=median
-  but the following request gives the same as delta=none.
-  https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=median&baseline=none&mlt&decl&sza&glat&glon
-
-  Also, if 'Subtract median value' is checked (shows only when 'Do Not Remove
-  Any Baseline' is selected), 'Subtract start value' is ignored. To see this,
-  search on 'median' at https://supermag.jhuapl.edu/mag/lib/js/mag.applet.js?l=a
-  So if delta=median, is supported, will need to check that baseline is 'none'
-  and raise an error if not.
-  """
+  _check_parameters(stationid, parameters, format)
 
   if isinstance(extent, str):
     extent = _stop_to_extent(start, extent)
@@ -80,54 +95,58 @@ def data(userid, stationid, start, extent,
   # Preserve the originally requested extent for sub-setting
   extent_requested = extent
 
-  # When caching, always fetch until the end of the last day.
-  if cache:
-    seconds_per_day = 60 * 60 * 24
-    # round up to full day(s)
-    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
-
-  start = start[0:10]
-
-  # Try to load from cache
-  if cache and not ignore_cache:
+  if use_cache:
+    # Try to load from cache
     result, error = _cache_get(cache_dir,
-                               stationid,
-                               format,
-                               start,
-                               extent,
-                               extent_requested,
-                               cadence,
-                               parameters=parameters,
-                               delta=delta,
-                               baseline=baseline)
+                              stationid,
+                              format,
+                              start,
+                              extent,
+                              extent_requested,
+                              cadence,
+                              parameters=parameters,
+                              delta=delta,
+                              baseline=baseline)
     if result is not None or error is not None:
       return result, error
 
 
-  common_params = f"start={start}&extent={extent}&logon={userid}"
+  if cache:
+    # When caching, always fetch from the start of the day and request an
+    #  integer number of days.
+    start_original = start
+    extent_originial = extent
+    start = start[0:10] + "T00:00Z"
+    seconds_per_day = 60 * 60 * 24
+    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
+    logger.debug("cache=True =>")
+    logger.debug(f"  Adjusting start from {start_original} to {start}")
+    logger.debug(f"  Adjusting extent from {extent_originial} to {extent}")
+
+
+  common_request_params = f"start={start}&extent={extent}&logon={userid}"
+  # Always request all parameters; will subset as needed.
   if stationid == 'indices':
-    url = CONFIG['data']['base_url_indices']
-    url += f"&{common_params}&indices=all&swi=all&imf=all"
+    url = CONFIG['data']['base_url']['indices']
+    url += f"&{common_request_params}&indices=all&swi=all&imf=all"
   else:
-    # Call the SuperMAG API to get the data
     options = []
     options.append(f"delta={delta}")
     options.append(f"baseline={baseline}")
-    # Always request the configured full set, then subset as needed.
-    request_parameters = CONFIG['data']['extra_parameters']
     options = '&'.join(options)
+    request_parameters = CONFIG['data']['mag']['extra_request_parameters']
     if len(request_parameters) > 0:
       options += '&' + '&'.join(request_parameters)
 
-    url = CONFIG['data']['base_url_data']
-    url += f"&{common_params}&station={stationid}&{options}"
+    url = CONFIG['data']['base_url']['data']
+    url += f"&{common_request_params}&station={stationid}&{options}"
+
 
   data_json, error = _get_and_parse(url, stationid, format='json', cafile=cafile)
   if error is not None:
     return None, error
 
-   # Cache the full response before sub-setting, so we have the full data
-   # available in cache for future requests.
+
   if cache:
     write_error = False
     try:
@@ -143,9 +162,9 @@ def data(userid, stationid, start, extent,
     if not write_error:
       logger.debug(f"Cache write successful for {stationid}")
 
-    data_json = _subset(data_json, start, extent_requested)
+    data_json = _subset_time(data_json, start, extent_requested)
 
-  data_json = _subset_parameters(data_json, parameters)
+  data_json = _subset_parameters(data_json, parameters, format)
 
   if format == 'json':
     return data_json, None
@@ -165,8 +184,9 @@ def _get_and_parse(url, stationid, format='json', cafile=None):
       logger.debug(error)
       return None, {'url': url, 'error': error}
 
-    if debug_response:
-      logger.debug(f"Raw response keys: {list(data_json[0].keys()) if data_json else 'no data'}")
+    if DEBUG_RESPONSE:
+      logger.debug("Raw response keys in first row:")
+      logger.debug(f"  {list(data_json[0].keys()) if data_json else 'no data'}")
 
     try:
       data_json = _reformat(data_json)
@@ -196,54 +216,36 @@ def _stop_to_extent(start, extent):
   return extent
 
 
-def _normalize_parameters(parameters):
+def _check_parameters(dataset, parameters, format):
+
+  import json
+  import pathlib
+
   if parameters is None:
     return None
 
-  if isinstance(parameters, str):
-    values = [token.strip() for token in parameters.split(',')]
-  elif isinstance(parameters, (list, tuple, set)):
-    values = [str(token).strip() for token in parameters]
+  if not isinstance(parameters, (list, tuple, set)):
+    raise ValueError(f"Invalid parameters value: {parameters}. Must be a None, list, tuple, or set.")
+
+  if format == 'json':
+    if dataset == 'indices':
+      pass
+    else:
+      known_parameters = CONFIG['data']['mag']['known_response_parameters']
+      if not all(param in known_parameters for param in parameters):
+        unknown = [param for param in parameters if param not in known_parameters]
+        raise ValueError(f"Unknown parameter(s) requested: {unknown}. Allowed: {known_parameters}")
+    return
+
+  if dataset == 'indices':
+    file = 'catalog.indices.json'
   else:
-    raise ValueError("parameters must be None, a comma-separated string, or a list/tuple/set of strings.")
+    file = 'catalog.mag.json'
 
-  values = [value for value in values if value != '']
-
-  seen = set()
-  normalized = []
-  for value in values:
-    if value not in seen:
-      seen.add(value)
-      normalized.append(value)
-
-  return normalized
-
-
-def _subset_parameters(data_json, parameters):
-  if parameters is None:
-    return data_json
-
-  # Expand parameter shortcuts, then keep only requested fields plus time keys.
-  field_map = {
-    'mlt': {'mlt', 'mcolat'},
-    'geo': {'glat', 'glon'},
-    'decl': {'decl'},
-    'sza': {'sza'},
-  }
-
-  keep_fields = {'tval_iso', 'tval'}
-  for parameter in parameters:
-    keep_fields.update(field_map.get(parameter, {parameter}))
-
-  filtered = []
-  for row in data_json:
-    row_filtered = {}
-    for key, value in row.items():
-      if key in keep_fields:
-        row_filtered[key] = value
-    filtered.append(row_filtered)
-
-  return filtered
+  _catalog_file = pathlib.Path(__file__).parent / file
+  logger.debug(f"Reading catalog file: {_catalog_file}")
+  with open(_catalog_file) as f:
+    dataset = json.load(f)
 
 
 def _reformat(data_json, format='json'):
@@ -263,6 +265,9 @@ def _reformat(data_json, format='json'):
       iso = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
       result.append({'tval_iso': iso, **row})
     return result
+
+  if format == 'hapi-binary':
+    pass
 
   header = []
   for key in data_json[0]:
@@ -310,7 +315,7 @@ def _reformat(data_json, format='json'):
     return df
 
 
-def _subset(data, start, extent):
+def _subset_time(data, start, extent):
   """Subset data to [start, start+extent).
 
   Accepts either a list of dicts (JSON records) or a pandas DataFrame.
@@ -323,19 +328,54 @@ def _subset(data, start, extent):
   except ImportError:
     is_df = False
 
+  if is_df:
+    if data.empty:
+      logger.debug("  No data to subset because dataframe is empty.")
+      return data
+  else:
+    if not data:
+      logger.debug("  No data to subset because data = [].")
+      return data
+
   start_ts = parse_timestamp(start)
   stop_ts = start_ts + extent if extent is not None else None
 
   if is_df:
+    orig_first = data['tval_iso'].iloc[0]
+    orig_last = data['tval_iso'].iloc[-1]
     if not data.empty and stop_ts is not None:
       data = data[(data['tval'] >= start_ts) & (data['tval'] < stop_ts)]
+    logger.debug(f"  Original first:  {orig_first}")
+    logger.debug(f"  Subsetted first: {data['tval_iso'].iloc[0]}")
+    logger.debug(f"  Original last:   {orig_last}")
+    logger.debug(f"  Subsetted last:  {data['tval_iso'].iloc[-1]}")
     return data
 
-  # list-of-dicts path
-  if not data or stop_ts is None:
-    return data
+  logger.debug(f"Subsetting data to start={start}, extent={extent}")
+  logger.debug(f"  Original start: {data[0]['tval_iso']}")
+  logger.debug(f"  Original end:   {data[-1]['tval_iso']}")
 
-  return [row for row in data if start_ts <= row['tval'] < stop_ts]
+  data_subsetted = [row for row in data if start_ts <= row['tval'] < stop_ts]
+  logger.debug(f"  Subsetted start {data_subsetted[0]['tval_iso']}")
+  logger.debug(f"  Subsetted end   {data_subsetted[-1]['tval_iso']}")
+
+  return data_subsetted
+
+
+def _subset_parameters(data_json, parameters, format):
+  if parameters is None:
+    return data_json
+
+  filtered = []
+  parameters = ['tval', 'tval_iso'] + parameters
+  for row in data_json:
+    row_filtered = {}
+    for key, value in row.items():
+      if key in parameters:
+        row_filtered[key] = value
+    filtered.append(row_filtered)
+
+  return filtered
 
 
 def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, cadence, parameters=None, delta=None, baseline=None):
@@ -362,10 +402,10 @@ def _cache_get(cache_dir, stationid, format, start, extent, extent_requested, ca
   if cached is None:
     return None, None
 
-  data = _subset(cached, start, extent_requested)
+  data = _subset_time(cached, start, extent_requested)
 
   if file_ext == 'json':
-    data = _subset_parameters(data, parameters)
+    data = _subset_parameters(data, parameters, format)
 
   if format == 'dataframe' and file_ext == 'dataframe':
     return data, None
@@ -492,7 +532,13 @@ def _cache_write(data_json, cache_dir, stationid, cadence, parameters=None, delt
     date_str = datetime.fromtimestamp(row['tval'], tz=timezone.utc).strftime('%Y-%m-%d')
     days.setdefault(date_str, []).append(row)
 
-  cache_dir = _cache_path(cache_dir, stationid, cadence, parameters=parameters, delta=delta, baseline=baseline)
+  cache_dir = _cache_path(cache_dir,
+                          stationid,
+                          cadence,
+                          parameters=parameters,
+                          delta=delta,
+                          baseline=baseline)
+
   cache_dir.mkdir(parents=True, exist_ok=True)
 
   for date_str, rows in days.items():
@@ -504,7 +550,7 @@ def _cache_write(data_json, cache_dir, stationid, cadence, parameters=None, delt
 
     # Write JSON chunk
     # TODO: Don't write redundant JSON. Write only dataframe and then convert 
-    # to JSON if needed.
+    # to raw JSON format if needed.
     rows = _reformat(rows, format='json')
     cache_json_file = cache_dir / f'{date_str}.json.pkl'
     _atomic_pickle_write(cache_json_file, rows)

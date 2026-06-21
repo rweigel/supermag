@@ -61,16 +61,25 @@ def _fetch_samples(userid,
     # Will update entry if no data found on stop_isodate
     location_stop_row, error_stop = _fetch_location(*args)
 
-    samples[station_id] = _build_sample_entry(
-      start_isodate,
-      stop_isodate,
-      location_start_row,
-      location_stop_row,
-      error_start,
-      error_stop,
-    )
+    location_start = _location_record(start_isodate, location_start_row, error_start)
+    location_stop = _location_record(stop_isodate, location_stop_row, error_stop)
+    sample_start = _sample_record(start_isodate, location_start_row, error_start)
+    sample_stop = _sample_record(stop_isodate, location_stop_row, error_stop)
 
-    _log_sample_entry(station_id, samples[station_id])
+    samples[station_id] = {
+      'location': {
+        'description': 'Data from the glat and glon parameters on the timestamps given by start and stop.',
+        'firstRecord': location_start,
+        'lastRecord': location_stop,
+      },
+      'sample': {
+        'description': 'Full first and last records from data() on the timestamps given by start and stop.',
+        'firstRecord': sample_start,
+        'lastRecord': sample_stop,
+      },
+    }
+
+    _location_record_print(station_id, samples[station_id])
 
   return samples
 
@@ -83,14 +92,15 @@ def _fetch_location(userid,
                     update=False,
                     cafile=None,
                     allow_retry=True):
-  from .data import data as fetch_data
+  from .data import data as data
 
   logger.debug("")
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
-  rows, error = fetch_data(userid, station_id, isodate, extent, ignore_cache=update, cafile=cafile)
+  # update=True means refresh from source, so do not read from cache.
+  data, error = data(userid, station_id, isodate, extent, use_cache=not update, cafile=cafile)
 
-  if allow_retry and (error is not None or len(rows) == 0):
+  if allow_retry and (error is not None or len(data) == 0):
     msg = "No data returned for {station_id} on {which} date for obtained from inventory requests."
     logger.error(msg.format(station_id=station_id, which=value))
 
@@ -101,15 +111,15 @@ def _fetch_location(userid,
     logger.error(emsg)
     return None, emsg
 
-  if not isinstance(rows, list) or len(rows) == 0:
+  if not isinstance(data, list) or len(data) == 0:
     emsg = f"No data returned for station {station_id} on {isodate}"
     logger.error(emsg)
     return None, emsg
 
   if value == "first":
-    first_row = rows[0]
+    first_row = data[0]
   elif value == "last":
-    first_row = rows[-1]
+    first_row = data[-1]
   else:
     raise ValueError(f"Invalid value parameter: {value}. Must be 'first' or 'last'.")
 
@@ -166,68 +176,80 @@ def _fetch_location_retry(userid, station_id, isodate, entry, value, update, caf
   return location, error
 
 
-def _build_sample_entry(start_isodate, stop_isodate, start_row, stop_row, start_error, stop_error):
-  return {
-    'location': {
-      'description': 'Data from the glat and glon parameters on the timestamps given by start and stop.',
-      'firstRecord': _location_summary(start_isodate, start_row, start_error),
-      'lastRecord': _location_summary(stop_isodate, stop_row, stop_error),
-    },
-    'sample': {
-      'description': 'Full first and last records from data() on the timestamps given by start and stop.',
-      'firstRecord': _sample_row(start_isodate, start_row, start_error),
-      'lastRecord': _sample_row(stop_isodate, stop_row, stop_error),
-    },
-  }
+def _has_location(location_record):
+  if location_record is None or not isinstance(location_record, dict):
+    return False
+  a = location_record.get('glat', None) is not None
+  b = location_record.get('glon', None) is not None
+  return a and b
 
 
-def _location_summary(isotime, row, error):
+def _location_record(isotime, location, error):
   if error is not None:
     return {
       'date': isotime if isotime is not None else '',
       'glat': None,
       'glon': None,
-      'error': error,
+      'error': error
     }
 
-  if row is None or not isinstance(row, dict):
+  if location is None or not isinstance(location, dict):
     return {
       'date': isotime,
       'glat': None,
       'glon': None,
-      'error': 'No location data returned',
+      'error': 'No location data returned'
     }
 
   return {
     'date': isotime,
-    'glat': row.get('glat'),
-    'glon': row.get('glon'),
+    'glat': location.get('glat'),
+    'glon': location.get('glon'),
   }
 
 
-def _sample_row(isotime, row, error):
+def _sample_record(isotime, location, error):
   if error is not None:
     return {
       'date': isotime if isotime is not None else '',
-      'error': error,
+      'error': error
     }
 
-  if row is None or not isinstance(row, dict):
+  if location is None or not isinstance(location, dict):
     return {
       'date': isotime,
-      'error': 'No sample data returned',
+      'error': 'No sample data returned'
     }
 
-  return dict(row)
+  return dict(location)
 
 
-def _log_sample_entry(station_id, sample_entry):
-  location_entry = sample_entry.get('location', {}) if isinstance(sample_entry, dict) else {}
-  start_record = location_entry.get('firstRecord', {})
-  stop_record = location_entry.get('lastRecord', {})
+def _location_record_print(station_id, location_record, threshold=None):
+
+  location_entry = location_record.get('location', {}) if isinstance(location_record, dict) else {}
+  location_start = _sample_record_get(location_entry, 'first')
+  location_stop = _sample_record_get(location_entry, 'last')
+  start_isodate = (location_start or {}).get('tval_iso', (location_start or {}).get('date', ''))
+  stop_isodate = (location_stop or {}).get('tval_iso', (location_stop or {}).get('date', ''))
+
   logger.debug(station_id)
-  logger.debug(f"  Start {(start_record or {}).get('tval_iso', (start_record or {}).get('date', ''))}: {start_record}")
-  logger.debug(f"  Stop  {(stop_record or {}).get('tval_iso', (stop_record or {}).get('date', ''))}:  {stop_record}")
+  start_msg = f"  Start {start_isodate}: {location_start}"
+  stop_msg =  f"  Stop  {stop_isodate}:  {location_stop}"
+  logger.debug(start_msg)
+  logger.debug(stop_msg)
+
+
+def _sample_record_get(location_record, which):
+  if not isinstance(location_record, dict):
+    return {}
+
+  if which == 'first':
+    return location_record.get('firstRecord', {})
+
+  if which == 'last':
+    return location_record.get('lastRecord', {})
+
+  raise ValueError(f"Invalid which value: {which}. Must be 'first' or 'last'.")
 
 
 def _read_inventory(output_dir, station_id=None):

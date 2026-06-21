@@ -3,8 +3,11 @@ def config(what=None):
   from pathlib import Path
 
   config_path = Path(__file__).parent / 'config.json'
-  with open(config_path) as f:
-    config = json.load(f)
+  try:
+    with open(config_path) as f:
+      config = json.load(f)
+  except Exception as e:
+    raise RuntimeError(f"Failed to load config from {config_path}: {e}")
 
   if what is None:
     return config

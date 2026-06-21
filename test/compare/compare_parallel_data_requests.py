@@ -5,14 +5,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import supermag
 from supermag.util import logger
 
-def _run_request(request_id, userid, station_id, start, extent, ignore_cache, cafile):
+def _run_request(request_id, userid, station_id, start, extent, use_cache, cafile):
   t0 = time.perf_counter()
   result, error = supermag.data(
     userid,
     station_id,
     start,
     extent,
-    ignore_cache=ignore_cache,
+    use_cache=use_cache,
     cafile=cafile,
   )
   dt = time.perf_counter() - t0
@@ -58,7 +58,7 @@ def _run_serial(args, extent):
   started = time.perf_counter()
   results = []
   for i in range(args.n_par):
-    item = _run_request(i, args.userid, args.station_id, args.start, extent, args.ignore_cache, args.cafile)
+    item = _run_request(i, args.userid, args.station_id, args.start, extent, args.use_cache, args.cafile)
     results.append(item)
     if item["ok"]:
       logger.info(
@@ -92,7 +92,7 @@ def _run_parallel(args, extent):
         args.station_id,
         args.start,
         extent,
-        args.ignore_cache,
+        args.use_cache,
         args.cafile,
       )
       for i in range(args.n_par)
@@ -142,12 +142,12 @@ def main():
 
   extent = 24 * 60 * 60
   logger.info(
-    "Params: station=%s start=%s extent=%s n_par=%s ignore_cache=%s",
+    "Params: station=%s start=%s extent=%s n_par=%s use_cache=%s",
     args.station_id,
     args.start,
     extent,
     args.n_par,
-    args.ignore_cache,
+    args.use_cache,
   )
 
   logger.info("")

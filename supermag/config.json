@@ -14,9 +14,22 @@
   "data": {
     "timeout": 60,
     "retry": 3,
-    "_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
-    "extra_parameters": ["mlt", "geo", "decl", "sza"],
-    "base_url_indices": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
-    "base_url_data": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead"
+    "formats": ["json", "list", "dataframe", "csv", "csv-hapi", "csv-hapi-noheader"],
+    "cadences": ["PT1M"],
+    "mag": {
+      "baselines": ["yearly", "all", "none"],
+      "deltas": ["start", "none"],
+      "extra_request_parameters_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
+      "extra_request_parameters": ["mlt", "geo", "decl", "sza"],
+      "known_response_parameters": ["tval", "ext", "iaga", "glon", "glat", "mlt", "mcolat", "decl", "sza", "N", "E", "Z"],
+      "request_response_parameter_map": {
+        "mlt": ["mlt", "mcolat"],
+        "geo": ["glat", "glon"]
+      }
+    },
+    "base_url": {
+      "indices": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
+      "data": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead"
+    }
   }
 }

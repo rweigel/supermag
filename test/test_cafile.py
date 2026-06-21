@@ -22,14 +22,14 @@ def test_data(userid=userid):
   args = ['ABK', '2000-01-01', 60]
 
   cafile = None
-  data = supermag.data(userid, *args, cafile=cafile, ignore_cache=True)
+  data = supermag.data(userid, *args, cafile=cafile, use_cache=True)
   assert data is not None, "No data received"
 
   cafile = 'default'
-  data = supermag.data(userid, *args, cafile=cafile, ignore_cache=True)
+  data = supermag.data(userid, *args, cafile=cafile, use_cache=True)
   assert data is not None, "No data received"
 
-  data = supermag.data(userid, *args, cafile=cafile, ignore_cache=True)
+  data = supermag.data(userid, *args, cafile=cafile, use_cache=True)
   assert data is not None, "No data received"
 
 
