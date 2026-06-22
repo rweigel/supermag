@@ -92,7 +92,7 @@ def _fetch_location(userid,
                     update=False,
                     cafile=None,
                     allow_retry=True):
-  from .data import data as data
+  from .data import data
 
   logger.debug("")
   logger.debug(f"Fetching location for station {station_id} on {isodate}")
@@ -174,14 +174,6 @@ def _fetch_location_retry(userid, station_id, isodate, entry, value, update, caf
       entry['stopDate'] = isodate_new
 
   return location, error
-
-
-def _has_location(location_record):
-  if location_record is None or not isinstance(location_record, dict):
-    return False
-  a = location_record.get('glat', None) is not None
-  b = location_record.get('glon', None) is not None
-  return a and b
 
 
 def _location_record(isotime, location, error):

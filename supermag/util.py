@@ -280,6 +280,14 @@ def path_relative_to_cwd(path):
   return f"./{Path(os.path.relpath(Path(path).resolve(), Path.cwd()))}"
 
 
+def has_location(location_record):
+  if location_record is None or not isinstance(location_record, dict):
+    return False
+  a = location_record.get('glat', None) is not None
+  b = location_record.get('glon', None) is not None
+  return a and b
+
+
 def check_userid(userid):
   if not userid:
     raise ValueError(f"SuperMAG user id is required. Got: {userid}")

@@ -119,13 +119,13 @@ def data(userid,
     # When caching, always fetch from the start of the day and request an
     #  integer number of days.
     start_original = start
-    extent_originial = extent
+    extent_original = extent
     start = start[0:10] + "T00:00Z"
     seconds_per_day = 60 * 60 * 24
     extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
     logger.debug("cache=True =>")
     logger.debug(f"  Adjusting start from {start_original} to {start}")
-    logger.debug(f"  Adjusting extent from {extent_originial} to {extent}")
+    logger.debug(f"  Adjusting extent from {extent_original} to {extent}")
 
 
   request_params_common = f"logon={userid}&start={start}&extent={extent}"

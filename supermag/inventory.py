@@ -357,18 +357,12 @@ def _print_summary(inventory):
 
   def _locations_differ(location_record, threshold=None):
 
-    def _has_location(location_record):
-      if location_record is None or not isinstance(location_record, dict):
-        return False
-      a = location_record.get('glat', None) is not None
-      b = location_record.get('glon', None) is not None
-      return a and b
-
+    from .util import has_location
 
     start_location = _sample_record_get(location_record, 'first')
     stop_location = _sample_record_get(location_record, 'last')
 
-    if not _has_location(start_location) or not _has_location(stop_location):
+    if not has_location(start_location) or not has_location(stop_location):
       return None
 
     if threshold is None:
@@ -419,7 +413,7 @@ def _print_summary(inventory):
       for key in sample_entry:
         logger.info(f"    {key}: {sample_entry[key]}")
       if _locations_differ(sample_entry, threshold=threshold):
-        logger.warn(f"    Location has changed by more than {threshold}° (~10 meters) between start and stop dates")
+        logger.warning(f"    Location has changed by more than {threshold}° (~10 meters) between start and stop dates")
 
 
 def _date_range(start, stop, format='datetime'):
