@@ -10,7 +10,7 @@ def test_short(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-10',
     'update_inventory': True,
-    'update_locations': True
+    'update_samples': True
   }
 
   inventory = supermag.inventory(userid, **kwargs)
@@ -36,7 +36,7 @@ def test_short(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-10',
     'update_inventory': False,
-    'update_locations': False
+    'update_samples': False
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)
@@ -48,7 +48,7 @@ def test_short(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-10',
     'update_inventory': True,
-    'update_locations': False
+    'update_samples': False
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)
@@ -58,7 +58,7 @@ def test_short(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-10',
     'update_inventory': False,
-    'update_locations': True
+    'update_samples': True
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)

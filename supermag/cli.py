@@ -134,7 +134,7 @@ def parse_inventory_args():
     Short tests:
       supermag-inventory --start 1970-01-01 --stop 1970-01-10 --userid USERID
       supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory --userid USERID
-      supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory --update-locations --userid USERID
+      supermag-inventory --start 1970-01-01 --stop 1970-01-10 --update-inventory --update-samples --userid USERID
   """
 
   description = _unwrap_description(inspect.getdoc(inventory))
@@ -148,7 +148,7 @@ def parse_inventory_args():
   _add_arg(parser, "output-dir")
   _add_arg(parser, "station-id")
   _add_arg(parser, "update-inventory")
-  _add_arg(parser, "update-locations")
+  _add_arg(parser, "update-samples")
   _add_arg(parser, "print")
   _add_arg(parser, "cafile")
   _add_arg(parser, "debug")
@@ -209,7 +209,7 @@ def parse_catalog_args():
       supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
       supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
       supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --userid USERID
-      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --update-locations --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --update-samples --userid USERID
   """
 
   parser = _parser(description=description, epilog=epilog)
@@ -220,7 +220,7 @@ def parse_catalog_args():
   _add_arg(parser, "stop")
   _add_arg(parser, "output-dir")
   _add_arg(parser, "update-inventory")
-  _add_arg(parser, "update-locations")
+  _add_arg(parser, "update-samples")
   _add_arg(parser, "print")
   parser.add_argument(
     '--debug',
@@ -292,7 +292,7 @@ def main_inventory():
   kwargs = {
     'output_dir': args.output_dir,
     'update_inventory': args.update_inventory,
-    'update_locations': args.update_locations,
+    'update_samples': args.update_samples,
     'station_id': args.station_id,
     'cafile': args.cafile
   }
@@ -330,7 +330,7 @@ def main_catalog():
     'stop': args.stop,
     'output_dir': args.output_dir,
     'update_inventory': args.update_inventory,
-    'update_locations': args.update_locations,
+    'update_samples': args.update_samples,
     'dataset': args.dataset,
     'cafile': args.cafile
   }
@@ -487,9 +487,9 @@ def _add_arg(parser, arg, default=None):
       action='store_true',
       help='Refetch and overwrite existing daily inventory files.',
     )
-  if arg == "update-locations":
+  if arg == "update-samples":
     parser.add_argument(
-      '--update-locations',
+      '--update-samples',
       action='store_true',
       help='Refetch station locations even when cached locations already exist.',
     )

@@ -14,8 +14,8 @@ def inventory(userid,
               stop=None,
               output_dir=CONFIG['common']['output_dir'],
               update_inventory=False,
-              update_locations=False, # Whether to update location details
-              include_locations=True, # Whether to include location details
+              update_samples=False, # Whether to update sample information
+              include_samples=True, # Whether to include sample information
               station_id=None,
               cafile=None):
   """
@@ -23,22 +23,25 @@ def inventory(userid,
 
   Additional information includes the station name, start and stop dates,
   geographic latitude and longitude, station operator, percentage of days with
-  data, and lists of days when data are available.
+  data, and lists of days when data are available. By default, start = 1970-01-01
+  and stop is tomorrow's date UTC.
 
   Note that the returned inventory differs in structure from the inventory API,
-  which returns a only list of station ids given a start and stop date.
+  which returns a only list of station ids with data available in given a start
+  and stop date range.
   ----
 
   Returns a dict with a key 'stations' containing a list where each item contains
   a station id, start/stop dates, and additional information.
 
-  If `include_locations` is `True`, location details beyond geographic location
-  are added to each station's information. The details include the stations
-  reported location on the start and stop dates, which are determined from the
-  glat and glong parameters from a request for data on these dates. This is
-  useful for determining of the station location changed significantly.
+  If `include_samples` is `True`, location details beyond geographic location
+  are added to each station's information. The details include a sample of data
+  and the station's reported location on the start and stop dates, which are
+  determined from the glat and glon parameters from a request for data on these
+  dates. This is useful for determining of the station location changed
+  significantly.
 
-  Also, `include_locations=True` will result in the start and stop dates being
+  Also, `include_samples=True` will result in the start and stop dates being
   updated if no data are returned or the request fails.
   """
 
@@ -98,11 +101,11 @@ def inventory(userid,
       return []
     logger.info(f'Filtered inventory to station {station_id}')
 
-  if include_locations:
+  if include_samples:
     kwargs = {
       'station_id': station_id,
       'output_dir': output_dir,
-      'update_locations': update_locations,
+      'update_samples': update_samples,
       'cafile': cafile
     }
     _add_sample_details(userid, inventory_by_station, **kwargs)
@@ -124,6 +127,7 @@ def inventory(userid,
 def get_inventories(start, stop,
                     output_dir=CONFIG['common']['output_dir'],
                     update=False):
+  """Get inventories for a date range, using cached files if available if update is False."""
 
   import time
   import pathlib
@@ -208,6 +212,7 @@ def get_inventories(start, stop,
 
 
 def _get_inventory(start):
+  """Get inventory from SuperMAG API on a specific start date."""
 
   from urllib.parse import urlencode
   from .util import get
@@ -232,7 +237,7 @@ def _get_inventory(start):
 
 
 def _restructure_inventory(inventory):
-  """Restructure inventory_by_station"""
+  """Restructure inventory by-station"""
 
   station_days = 0
   s = '' if len(inventory) == 1 else 's'
@@ -265,6 +270,8 @@ def _restructure_inventory(inventory):
 
 
 def _add_station_info(inventory, cafile=None):
+  """Add station info returned by _get_station_info to inventory entries."""
+
   logger.info("Getting all station info")
   station_info, station_info_error = _get_station_info(cafile=cafile)
   if station_info_error is not None:
@@ -280,16 +287,17 @@ def _add_station_info(inventory, cafile=None):
 
 
 def _get_station_info(cafile=None):
+  """Fetch station info from the SuperMAG API."""
 
   from .util import get
   from .config import config
 
   station_info_url = config('inventory')['station_info_url']
   kwargs = {
-     'format': 'json',
-     'cafile': cafile,
+      'format': 'json',
+      'cafile': cafile,
       'retry': CONFIG['inventory']['retry'],
-     'timeout': CONFIG['inventory']['timeout']
+      'timeout': CONFIG['inventory']['timeout']
   }
   station_info, error = get(station_info_url, **kwargs)
   if error is not None:
@@ -309,39 +317,41 @@ def _get_station_info(cafile=None):
   return station_info, None
 
 
-def _add_sample_details(userid, inventory,
+def _add_sample_details(userid,
+                        inventory,
                         station_id=None,
                         output_dir=None,
-                        update_locations=False,
+                        update_samples=False,
                         cafile=None):
+  """Add sample details to inventory entries."""
 
   from .samples import samples
 
-  msgo = "geographic locations for each station on start and stop dates"
-  if update_locations:
+  msgo = "sample data and geographic locations for each station on start and stop dates"
+  if update_samples:
     logger.info(f"Getting {msgo} (refetching cached data)")
   else:
     logger.info(f"Getting {msgo} (using cached data, if available)")
 
   kwargs = {
     'output_dir': output_dir,
-    'update': update_locations,
+    'update': update_samples,
     'station_id': station_id,
     'inventory': inventory,
     'cafile': cafile
   }
 
-  location_details = samples(userid, **kwargs)
+  _samples = samples(userid, **kwargs)
 
   logger.info(f"Adding {msgo} to inventory entries")
   for entry in inventory:
-    if entry['id'] in location_details:
-      sample_details = location_details[entry['id']]
-      entry['location'] = sample_details['location']
-      entry['sample'] = sample_details['sample']
+    if entry['id'] in _samples:
+      entry['location'] = _samples[entry['id']]['location']
+      entry['sample'] = _samples[entry['id']]['sample']
 
 
 def _print_summary(inventory):
+  """Print a summary of the inventory entries."""
 
   def _sample_record_get(location_record, which):
     if not isinstance(location_record, dict):
@@ -417,6 +427,7 @@ def _print_summary(inventory):
 
 
 def _date_range(start, stop, format='datetime'):
+  """Return a list of dates between start and stop dates, inclusive."""
   import datetime as dt
 
   if isinstance(start, str):

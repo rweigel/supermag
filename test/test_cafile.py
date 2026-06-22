@@ -67,7 +67,7 @@ def test_inventory(userid=userid):
     'stop': '1970-01-03',
     'station_id': 'DRV',
     'update_inventory': True,
-    'update_locations': True,
+    'update_samples': True,
   }
 
   cafile = None
@@ -89,7 +89,7 @@ def test_catalog(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-03',
     'update_inventory': True,
-    'update_locations': True,
+    'update_samples': True,
     'dataset': 'DRV/baseline_none/PT1M/XYZ'
   }
 

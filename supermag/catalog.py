@@ -3,12 +3,13 @@ from .util import logger
 from .config import config
 CONFIG = config()
 
+
 def catalog(userid,
           start=None,
           stop=None,
           output_dir=CONFIG['common']['output_dir'],
           update_inventory=False,
-          update_locations=False,
+          update_samples=False,
           dataset=None, # HAPI dataset ID to filter by
           cafile=None):
 
@@ -33,8 +34,8 @@ def catalog(userid,
     'stop': stop,
     'output_dir': output_dir,
     'update_inventory': update_inventory,
-    'update_locations': update_locations,
-    'include_locations': True,
+    'update_samples': update_samples,
+    'include_samples': True,
     'station_id': station_id,
     'cafile': cafile
   }

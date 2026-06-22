@@ -10,7 +10,7 @@ def test_short(userid=userid):
     'start': '1970-01-01',
     'stop': '1970-01-03',
     'update_inventory': False,
-    'update_locations': False
+    'update_samples': False
   }
 
   inventory = supermag.inventory(userid, **kwargs)

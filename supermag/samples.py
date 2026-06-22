@@ -14,7 +14,7 @@ def samples(userid,
               station_id=None,
               inventory=None,
               cafile=None):
-  """Reads inventory file and fetches station endpoint samples.
+  """Reads inventory file and fetches station data samples.
 
   Fetches data on each station's first and last available day to get geographic
   latitude and longitude, writes results to samples.json, and updates inventory
