@@ -1,5 +1,6 @@
-# python test_inventory.py USERID
-
+# Usage:
+#   pytest test_inventory.py --userid USERID
+#   python test_inventory.py --userid USERID
 import supermag
 from util import userid
 
@@ -24,7 +25,6 @@ def test_short(userid=userid):
       assert keys in item, f"Expected each inventory item to have a '{keys}' key"
     assert 'glat' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
     assert 'glon' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
-    assert 'tval_iso' in item['sample']['firstRecord'], "Expected sample.firstRecord to contain full data from data()"
     assert 'tval' in item['sample']['firstRecord'], "Expected sample.firstRecord to contain full data from data()"
     if item['id'] == 'DRV':
       found = True

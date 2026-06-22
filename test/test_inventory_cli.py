@@ -1,3 +1,6 @@
+# Usage:
+#   pytest test_inventory_cli.py --userid USERID
+#   python test_inventory_cli.py --userid USERID
 from types import SimpleNamespace
 
 import supermag.cli as cli

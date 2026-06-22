@@ -1,6 +1,6 @@
 # Usage:
-#   pytest test_cafile.py --userid USERID
-#   python test_cafile.py --userid USERID
+#   pytest test_data_cli.py --userid USERID
+#   python test_data_cli.py --userid USERID
 import sys
 import pathlib
 import tempfile
@@ -28,13 +28,13 @@ def test_default(userid=userid):
           '--ignore-cache'
          ]
   _run_test_command(cmd)
-  _check_output_file(output_file, format='json', ext='json', n_records=1)
+  _check_output_file(output_file, dataset_type='mag', format='json', ext='json', n_records=1)
   _remove(output_file)
 
 
 def test_format(userid=userid):
 
-  for format in ['json', 'csv', 'dataframe', 'list']:
+  for format in ['json', 'csv', 'dataframe']:
     ext = ""
     if format == 'json':
       ext = 'json'
@@ -54,7 +54,7 @@ def test_format(userid=userid):
           ]
 
     _run_test_command(cmd)
-    _check_output_file(output_file, format=format, ext=ext, n_records=1)
+    _check_output_file(output_file, dataset_type='mag', format=format, ext=ext, n_records=1)
     _remove(output_file)
 
 

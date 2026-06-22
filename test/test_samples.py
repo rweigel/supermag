@@ -1,5 +1,6 @@
-# pytest test_samples.py --userid USERID
-
+# Usage:
+#   pytest test_samples.py --userid USERID
+#   python test_samples.py --userid USERID
 import supermag
 from util import userid
 

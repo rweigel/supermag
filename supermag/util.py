@@ -244,6 +244,11 @@ def move_log_files(log_files, dst_dir, archive=False):
       archive_dst.unlink()
 
 
+def t_val2iso(tval):
+  from datetime import datetime, timezone
+  return datetime.fromtimestamp(tval, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
+
+
 def parse_timestamp(timestamp):
   """Parse an common ISO6801 string to a Unix timestamp."""
   from datetime import datetime, timezone

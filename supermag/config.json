@@ -14,22 +14,24 @@
   "data": {
     "timeout": 60,
     "retry": 3,
-    "formats": ["json", "list", "dataframe", "csv", "csv-hapi", "csv-hapi-noheader"],
+    "formats": ["json", "dataframe", "csv", "csv-hapi", "csv-hapi-noheader"],
     "cadences": ["PT1M"],
     "mag": {
+      "base_url": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead",
       "baselines": ["yearly", "all", "none"],
       "deltas": ["start", "none"],
-      "extra_request_parameters_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
-      "extra_request_parameters": ["mlt", "geo", "decl", "sza"],
-      "known_response_parameters": ["tval", "ext", "iaga", "glon", "glat", "mlt", "mcolat", "decl", "sza", "N", "E", "Z"],
-      "request_response_parameter_map": {
-        "mlt": ["mlt", "mcolat"],
-        "geo": ["glat", "glon"]
-      }
+
+      "request_parameters": "station={station}&start={start}&extent={extent}&baseline={baseline}&delta={delta}&mlt&geo&decl&sza",
+      "request_parameters_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
+
+      "response_parameters": ["tval", "ext", "iaga", "glon", "glat", "mlt", "mcolat", "decl", "sza", "N", "E", "Z"],
+      "response_parameter_dicts": ["N", "E", "Z"]
     },
-    "base_url": {
-      "indices": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
-      "data": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead"
+    "indices": {
+      "base_url": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
+      "request_parameters": "indices=all&swi=all&imf=all",
+      "response_parameters": ["tval", "SME", "SML", "SMLmlat", "SMLmlt", "SMLglat", "SMLglon", "SMLstid", "SMU", "SMUmlat", "SMUmlt", "SMUglat", "SMUglon", "SMUstid", "SMEnum", "SMEs", "SMLs", "SMLsmlat", "SMLsmlt", "SMLsglat", "SMLsglon", "SMLsstid", "SMUs", "SMUsmlat", "SMUsmlt", "SMUsglat", "SMUsglon", "SMUsstid", "SMEsnum", "SMEd", "SMLd", "SMLdmlat", "SMLdmlt", "SMLdglat", "SMLdglon", "SMLdstid", "SMUd", "SMUdmlat", "SMUdmlt", "SMUdglat", "SMUdglon", "SMUdstid", "SMEdnum", "SMEr", "SMLr", "SMLrmlat", "SMLrmlt", "SMLrglat", "SMLrglon", "SMLrstid", "SMUr", "SMUrmlat", "SMUrmlt", "SMUrglat", "SMUrglon", "SMUrstid", "SMErnum", "smr", "smr00", "smr06", "smr12", "smr18", "smrnum", "smrnum00", "smrnum06", "smrnum12", "smrnum18", "bgse", "bgsm", "vgse", "vgsm", "clockgse", "clockgsm", "density", "dynpres", "epsilon", "newell"],
+      "response_parameter_dicts": ["bgse", "bgsm", "vgse", "vgsm"]
     }
   }
 }
