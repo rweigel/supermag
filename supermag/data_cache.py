@@ -1,8 +1,8 @@
-
 from .util import logger
 
 from .config import config
 CONFIG = config()
+
 
 def get(cache_dir,
               stationid,
@@ -52,6 +52,59 @@ def get(cache_dir,
     return _reformat_json(data, dataset_type, format='dataframe'), None
 
   return _reformat_json(data, dataset_type, format=format), None
+
+
+def write(data_json,
+          cache_dir,
+          stationid,
+          dataset_type,
+          cadence,
+          parameters=None,
+          delta=None,
+          baseline=None):
+  """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
+
+  from .util import t_val2iso
+  from .data import _reformat_json
+
+  if not data_json:
+    return
+
+  # Group rows in data_json by date (UTC)
+  days = {} # Keys of date
+  for row in data_json:
+    date = t_val2iso(row['tval'])[0:10]
+    days.setdefault(date, []).append(row)
+
+  cache_dir = _path(cache_dir,
+                          stationid,
+                          cadence,
+                          parameters=parameters,
+                          delta=delta,
+                          baseline=baseline)
+
+  cache_dir.mkdir(parents=True, exist_ok=True)
+
+  for date, data_json in days.items():
+
+    logger.debug("Writing cache for data with ")
+    logger.debug(f"  first timestamp: {t_val2iso(data_json[0]['tval'])}")
+    logger.debug(f"  last timestamp:  {t_val2iso(data_json[-1]['tval'])}")
+    logger.debug(f"  number of records: {len(data_json)}")
+
+    for format in ('json', 'dataframe'):
+      # Write day chunk
+      try:
+        cache_file = cache_dir / f'{date}.{format}.pkl'
+        if format == 'json':
+          _write_atomic_pkl(cache_file, data_json)
+        else:
+          data = _reformat_json(data_json, dataset_type, format='dataframe')
+          _write_atomic_pkl(cache_file, data)
+        logger.debug(f"Wrote: {cache_file}")
+      except Exception as e:
+        logger.debug(f"Failed to write cache file {cache_file}: {e}")
+        raise e
 
 
 def _path(cache_dir,
@@ -157,53 +210,7 @@ def _read(cache_dir,
   return result
 
 
-def cache_write(data_json, cache_dir, stationid, dataset_type, cadence, parameters=None, delta=None, baseline=None):
-  """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
-
-  from .util import t_val2iso
-  from .data import _reformat_json
-
-  if not data_json:
-    return
-
-  # Group rows in data_json by date (UTC)
-  days = {} # Keys of date
-  for row in data_json:
-    date = t_val2iso(row['tval'])[0:10]
-    days.setdefault(date, []).append(row)
-
-  cache_dir = _path(cache_dir,
-                          stationid,
-                          cadence,
-                          parameters=parameters,
-                          delta=delta,
-                          baseline=baseline)
-
-  cache_dir.mkdir(parents=True, exist_ok=True)
-
-  for date, data_json in days.items():
-
-    logger.debug("Writing cache for data with ")
-    logger.debug(f"  first timestamp: {t_val2iso(data_json[0]['tval'])}")
-    logger.debug(f"  last timestamp:  {t_val2iso(data_json[-1]['tval'])}")
-    logger.debug(f"  number of records: {len(data_json)}")
-
-    for format in ('json', 'dataframe'):
-      # Write day chunk
-      try:
-        cache_file = cache_dir / f'{date}.{format}.pkl'
-        if format == 'json':
-          _atomic_pickle_write(cache_file, data_json)
-        else:
-          data = _reformat_json(data_json, dataset_type, format='dataframe')
-          _atomic_pickle_write(cache_file, data)
-        logger.debug(f"Wrote: {cache_file}")
-      except Exception as e:
-        logger.debug(f"Failed to write cache file {cache_file}: {e}")
-        raise e
-
-
-def _atomic_pickle_write(path, obj):
+def _write_atomic_pkl(path, obj):
 
   # TODO: Write gzip-compressed pickle files (reduces file size by factor of 3)
   import os
