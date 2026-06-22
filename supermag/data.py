@@ -3,9 +3,6 @@ from .util import logger
 from .config import config
 CONFIG = config()
 
-# If true, show response data in debug logs.
-DEBUG_RESPONSE = True
-
 
 def indices(userid,
             start,
@@ -101,17 +98,19 @@ def data(userid,
 
   if use_cache:
     # Try to load from cache
-    result, error = _cache_get(cache_dir,
-                              stationid,
-                              dataset_type,
-                              format,
-                              start,
-                              extent,
-                              extent_requested,
-                              cadence,
-                              parameters=parameters,
-                              delta=delta,
-                              baseline=baseline)
+    from supermag import data_cache
+    args = (cache_dir,
+            stationid,
+            dataset_type,
+            format,
+            start,
+            extent,
+            extent_requested,
+            cadence,
+            parameters,
+            delta,
+            baseline)
+    result, error = data_cache.get(*args)
     if result is not None or error is not None:
       return result, error
 
@@ -156,13 +155,17 @@ def data(userid,
   if cache:
     write_error = False
     try:
-      _cache_write(data_json,
-                   cache_dir,
-                   stationid,
-                   dataset_type,
-                   cadence,
-                   delta=delta,
-                   baseline=baseline)
+      from supermag import data_cache
+      args = (
+        data_json,
+        cache_dir,
+        stationid,
+        dataset_type,
+        cadence,
+        delta,
+        baseline
+      )
+      data_cache.write(*args)
     except Exception as e:
       write_error = True
       logger.error(f"Failed to write cache for {stationid}: {e}")
@@ -178,7 +181,7 @@ def data(userid,
     # No need to reformat.
     return data_json, None
 
-  data = _reformat(data_json, dataset_type, format=format)
+  data = _reformat_json(data_json, dataset_type, format=format)
 
   return data, None
 
@@ -197,9 +200,8 @@ def _get_and_parse(url, stationid, dataset_type, format='json', cafile=None):
       logger.debug(error)
       return None, {'url': url, 'error': error}
 
-    if DEBUG_RESPONSE:
-      logger.debug("Raw response keys in first row:")
-      logger.debug(f"  {list(data_json[0].keys()) if data_json else 'no data'}")
+    logger.debug("Keys in first row of JSON response:")
+    logger.debug(f"  {list(data_json[0].keys()) if data_json else 'no data'}")
 
   except Exception as error:
     emsg = f"data() failed for {stationid}"
@@ -253,17 +255,13 @@ def _check_parameters(dataset, parameters, format):
     dataset = json.load(f)
 
 
-def _reformat(data_json, dataset_type, format='json'):
+def _reformat_json(data_json, dataset_type, format='json'):
   """Convert json response data to the requested format.
 
   `data_json` is the response from _parse_response().
   For list input, nested dicts are flattened (e.g. N.nez -> N_nez).
   """
 
-  """
-    TODO?: Could use Pandas MultiIndex to avoid looping over rows. 
-           See _reformat_fast.
-  """
   from .config import config
 
   formats = config('data')['formats']
@@ -320,47 +318,10 @@ def _reformat(data_json, dataset_type, format='json'):
   # Always prepend tval_datetime in dataframe
   if format == 'dataframe':
     tval_datetime = pandas.to_datetime(df['tval'], unit='s', utc=True)
-    tval_iso_col = tval_datetime.dt.strftime('%Y-%m-%dT%H:%MZ')
-    df.insert(0, 'tval_iso', tval_iso_col)
+    tval_iso = tval_datetime.dt.strftime('%Y-%m-%dT%H:%MZ')
+    df.insert(0, 'tval_iso', tval_iso)
     df.insert(0, 'tval_datetime', tval_datetime)
     return df
-
-
-def _reformat_fast(data_json, format='json'):
-  # Not used and not tested.
-  import pandas
-
-  from numbers import Number
-
-  import numpy
-
-  if format not in ['json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader'.")
-
-  def _flatten_column_label(column, sub_sep='_'):
-    if isinstance(column, tuple):
-      head, tail = column
-      return f'{head}{sub_sep}{tail}' if tail not in [None, ''] else head
-    return column
-
-  df = pandas.json_normalize(data_json, sep='_')
-
-  # Reconstruct as MultiIndex:
-  #   'field_subkey' -> ('field', 'subkey'), 'field' -> ('field', '')
-  df.columns = pandas.MultiIndex.from_tuples([
-    tuple(col.split("_", 1)) if "_" in col else (col, '')
-    for col in df.columns
-  ])
-
-  # Preserve numeric lists as arrays in dataframe output; string lists become
-  # comma-separated strings.
-  list_cols = [col for col in df.columns if isinstance(df[col].iloc[0], list)]
-  for col in list_cols:
-    if isinstance(df[col].iloc[0], Number):
-      df[col] = list(numpy.asarray(df[col].tolist()))
-    else:
-      df[col] = df[col].map(list)
-
 
 
 def _subset_time(data, start, extent):
@@ -425,197 +386,6 @@ def _subset_parameters(data_json, parameters, format):
     filtered.append(row_filtered)
 
   return filtered
-
-
-def _cache_get(cache_dir, stationid, dataset_type, format, start, extent, extent_requested, cadence, parameters=None, delta=None, baseline=None):
-
-  if False:
-    _locals = locals()
-    logger.debug("data._cache_get() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
-
-  if format not in ['json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader'.")
-
-  # csv and parameter-subset dataframe are generated from JSON records.
-  file_ext = 'dataframe' if format == 'dataframe' and parameters is None else 'json'
-  cached = _cache_read(cache_dir,
-                       stationid,
-                       start,
-                       extent,
-                       format=file_ext,
-                       cadence=cadence,
-                       delta=delta,
-                       baseline=baseline)
-  if cached is None:
-    return None, None
-
-  data = _subset_time(cached, start, extent_requested)
-
-  if file_ext == 'json':
-    data = _subset_parameters(data, parameters, format)
-
-  if format == 'dataframe' and file_ext == 'dataframe':
-    return data, None
-
-  if format == 'dataframe':
-    return _reformat(data, dataset_type, format='dataframe'), None
-
-  return _reformat(data, dataset_type, format=format), None
-
-
-def _cache_path(cache_dir, stationid, cadence, parameters=None, delta=None, baseline=None):
-
-  if False:
-    _locals = locals()
-    logger.debug("data._cache_path() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
-
-
-  import pathlib
-  if cache_dir is None:
-    cache_dir = pathlib.Path(__file__).resolve().parent.parent / CONFIG['common']['output_dir']
-  else:
-    cache_dir = pathlib.Path(cache_dir)
-
-  cache_dir = cache_dir / 'cache'
-
-  if stationid == 'indices':
-    sub_dir = pathlib.Path(f'indices/{cadence}')
-    return cache_dir / sub_dir
-  else:
-    sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}")
-
-  delta_str = str(delta) if delta is not None else 'none'
-  baseline_str = str(baseline) if baseline is not None else 'none'
-  cache_path = cache_dir / sub_dir / f"baseline-{baseline_str}" / f"delta-{delta_str}"
-  return cache_path
-
-
-def _cache_read(cache_dir, stationid, start, extent, format='json', cadence='PT1M', parameters=None, delta=None, baseline=None):
-  """Return cached data for all day-chunk files spanning [start, start+extent). Returns None if any chunk is missing."""
-
-  if False:
-    _locals = locals()
-    logger.debug("data._cache_read() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
-
-
-  import pickle
-  from datetime import datetime, timezone, timedelta
-
-  if format not in ['json', 'dataframe']:
-    raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
-
-  cache_dir = _cache_path(cache_dir,
-                          stationid,
-                          cadence,
-                          parameters=parameters,
-                          delta=delta,
-                          baseline=baseline)
-
-  # Determine which UTC dates are needed
-  start_str = str(start).rstrip('Z').replace(' ', 'T')
-  for fmt in ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d'):
-    try:
-      start_dt = datetime.strptime(start_str, fmt).replace(tzinfo=timezone.utc)
-      break
-    except ValueError:
-      continue
-  else:
-    return None
-
-  seconds_per_day = 60 * 60 * 24
-  n_days = max(1, (extent + seconds_per_day - 1) // seconds_per_day) if extent else 1
-  dates = [start_dt.date() + timedelta(days=i) for i in range(n_days)]
-
-  chunks = []
-  for date in dates:
-    cache_file = cache_dir / f'{date}.{format}.pkl'
-    if not cache_file.exists():
-      logger.debug(f"Cache miss: {cache_file}")
-      return None
-    logger.debug(f"Cache hit: {cache_file}")
-    with cache_file.open('rb') as f:
-      chunks.append(pickle.load(f))
-
-  if format == 'dataframe':
-    import pandas
-    return pandas.concat(chunks, ignore_index=True)
-
-  # json: list of dicts
-  result = []
-  for chunk in chunks:
-    result.extend(chunk)
-  return result
-
-
-def _cache_write(data_json, cache_dir, stationid, dataset_type, cadence, parameters=None, delta=None, baseline=None):
-  """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
-  import os
-  import pickle
-
-  from .util import t_val2iso
-
-  def _atomic_pickle_write(path, obj):
-
-    # TODO: Write gzip-compressed pickle files (reduces file size by factor of 3)
-    import secrets
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_ext = f".{secrets.token_hex(3)}.tmp"
-    tmp_path = path.with_suffix(path.suffix + tmp_ext)
-    try:
-      with tmp_path.open('wb') as f:
-        pickle.dump(obj, f)
-      os.replace(tmp_path, path)
-    except Exception:
-      try:
-        tmp_path.unlink()
-      except OSError:
-        pass
-      raise
-
-  if not data_json:
-    return
-
-  # Group rows in data_json by date (UTC)
-  days = {} # Keys of date
-  for row in data_json:
-    date = t_val2iso(row['tval'])[0:10]
-    days.setdefault(date, []).append(row)
-
-  cache_dir = _cache_path(cache_dir,
-                          stationid,
-                          cadence,
-                          parameters=parameters,
-                          delta=delta,
-                          baseline=baseline)
-
-  cache_dir.mkdir(parents=True, exist_ok=True)
-
-  for date, data_json in days.items():
-
-    logger.debug("Writing cache for data with ")
-    logger.debug(f"  first timestamp: {t_val2iso(data_json[0]['tval'])}")
-    logger.debug(f"  last timestamp:  {t_val2iso(data_json[-1]['tval'])}")
-    logger.debug(f"  number of records: {len(data_json)}")
-
-    for format in ('json', 'dataframe'):
-      # Write day chunk
-      try:
-        cache_file = cache_dir / f'{date}.{format}.pkl'
-        if format == 'json':
-          _atomic_pickle_write(cache_file, data_json)
-        else:
-          _atomic_pickle_write(cache_file, _reformat(data_json, dataset_type, format='dataframe'))
-        logger.debug(f"Wrote: {cache_file}")
-      except Exception as e:
-        logger.debug(f"Failed to write cache file {cache_file}: {e}")
-        raise e
 
 
 if __name__ == '__main__':

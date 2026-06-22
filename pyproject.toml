@@ -7,9 +7,9 @@ name = "supermag"
 version = "0.1.0"
 requires-python = ">=3.8"
 dependencies = [
-  "pandas",
   "urllib3",
   "certifi",
+  "pandas",
   "utilrsw @ git+https://github.com/rweigel/utilrsw@924b7c3"
 ]
 
@@ -17,8 +17,11 @@ dependencies = [
 where = ["."]
 include = ["supermag*"]
 
+[tool.setuptools.package-data]
+supermag = ["*.json"]
+
 [project.scripts]
 supermag-data      = "supermag.cli:main_data"
 supermag-catalog   = "supermag.cli:main_catalog"
 supermag-inventory = "supermag.cli:main_inventory"
-supermag-samples = "supermag.cli:main_samples"
+supermag-samples   = "supermag.cli:main_samples"
