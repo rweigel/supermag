@@ -24,7 +24,7 @@
       "request_parameters_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
 
       "response_parameters": ["tval", "ext", "iaga", "glon", "glat", "mlt", "mcolat", "decl", "sza", "N", "E", "Z"],
-      "response_parameter_dicts": ["N", "E", "Z"]
+      "response_parameter_dicts": {"N": ["nez", "geo"], "E": ["nez", "geo"], "Z": ["nez", "geo"]}
     },
     "indices": {
       "base_url": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",

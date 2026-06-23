@@ -7,7 +7,6 @@ CONFIG = config()
 def get(cache_dir,
               stationid,
               dataset_type,
-              format,
               start,
               extent,
               extent_requested,
@@ -22,36 +21,15 @@ def get(cache_dir,
     for arg in _locals:
       logger.debug(f"  {arg}: {_locals[arg]}")
 
-  from .data import _subset_time, _subset_parameters, _reformat_json
-
-  if format not in ['json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader']:
-    raise ValueError("Invalid format. Must be one of: 'json', 'dataframe', 'csv', 'csv-hapi', 'csv-hapi-noheader'.")
-
-  # csv and parameter-subset dataframe are generated from JSON records.
-  file_ext = 'dataframe' if format == 'dataframe' and parameters is None else 'json'
   cached = _read(cache_dir,
-                       stationid,
-                       start,
-                       extent,
-                       format=file_ext,
-                       cadence=cadence,
-                       delta=delta,
-                       baseline=baseline)
-  if cached is None:
-    return None, None
+                stationid,
+                start,
+                extent,
+                cadence=cadence,
+                delta=delta,
+                baseline=baseline)
 
-  data = _subset_time(cached, start, extent_requested)
-
-  if file_ext == 'json':
-    data = _subset_parameters(data, parameters, format)
-
-  if format == 'dataframe' and file_ext == 'dataframe':
-    return data, None
-
-  if format == 'dataframe':
-    return _reformat_json(data, dataset_type, format='dataframe'), None
-
-  return _reformat_json(data, dataset_type, format=format), None
+  return cached
 
 
 def write(data_json,
@@ -65,7 +43,6 @@ def write(data_json,
   """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
 
   from .util import t_val2iso
-  from .data import _reformat_json
 
   if not data_json:
     return
@@ -77,11 +54,11 @@ def write(data_json,
     days.setdefault(date, []).append(row)
 
   cache_dir = _path(cache_dir,
-                          stationid,
-                          cadence,
-                          parameters=parameters,
-                          delta=delta,
-                          baseline=baseline)
+                    stationid,
+                    cadence,
+                    parameters=parameters,
+                    delta=delta,
+                    baseline=baseline)
 
   cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -92,19 +69,13 @@ def write(data_json,
     logger.debug(f"  last timestamp:  {t_val2iso(data_json[-1]['tval'])}")
     logger.debug(f"  number of records: {len(data_json)}")
 
-    for format in ('json', 'dataframe'):
-      # Write day chunk
-      try:
-        cache_file = cache_dir / f'{date}.{format}.pkl'
-        if format == 'json':
-          _write_atomic_pkl(cache_file, data_json)
-        else:
-          data = _reformat_json(data_json, dataset_type, format='dataframe')
-          _write_atomic_pkl(cache_file, data)
-        logger.debug(f"Wrote: {cache_file}")
-      except Exception as e:
-        logger.debug(f"Failed to write cache file {cache_file}: {e}")
-        raise e
+    try:
+      cache_file = cache_dir / f'{date}.json.pkl'
+      _write_atomic_pkl(cache_file, data_json)
+      logger.debug(f"Wrote: {cache_file}")
+    except Exception as e:
+      logger.debug(f"Failed to write cache file {cache_file}: {e}")
+      raise e
 
 
 def _path(cache_dir,
@@ -143,14 +114,13 @@ def _path(cache_dir,
 
 
 def _read(cache_dir,
-               stationid,
-               start,
-               extent,
-               format='json',
-               cadence='PT1M',
-               parameters=None,
-               delta=None,
-               baseline=None):
+          stationid,
+          start,
+          extent,
+          cadence='PT1M',
+          parameters=None,
+          delta=None,
+          baseline=None):
   """Return cached data for full-day files from [start, start+extent). Returns None if any chunk is missing."""
 
   if False:
@@ -161,11 +131,7 @@ def _read(cache_dir,
 
 
   import pickle
-  import pandas
   import datetime
-
-  if format not in ['json', 'dataframe']:
-    raise ValueError("Invalid format. Must be 'json' or 'dataframe'.")
 
   cache_dir = _path(cache_dir,
                           stationid,
@@ -192,7 +158,7 @@ def _read(cache_dir,
 
   chunks = []
   for date in dates:
-    cache_file = cache_dir / f'{date}.{format}.pkl'
+    cache_file = cache_dir / f'{date}.json.pkl'
     if not cache_file.exists():
       logger.debug(f"Cache miss: {cache_file}")
       return None
@@ -200,13 +166,11 @@ def _read(cache_dir,
     with cache_file.open('rb') as f:
       chunks.append(pickle.load(f))
 
-  if format == 'dataframe':
-    return pandas.concat(chunks, ignore_index=True)
-
   # json: list of dicts
   result = []
   for chunk in chunks:
     result.extend(chunk)
+
   return result
 
 

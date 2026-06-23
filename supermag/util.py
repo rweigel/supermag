@@ -76,7 +76,7 @@ def _parse_response(response, format=None):
     return response_str
 
   if len(response_str) == 0:
-    return {}, None
+    return [], None
 
   try:
     data_json = json.loads(response_str)

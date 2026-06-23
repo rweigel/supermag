@@ -53,19 +53,43 @@ def test_format(userid=userid):
   check_equivalent(all_formats)
 
 
-def test_options(userid=userid):
+def test_data(userid=userid):
+  from supermag.util import get
 
+  """
+  Note that if extent = 60, we will get a failure if use_cache = False.
+  The SuperMAG API will return {} because there is no valid data given the
+  start and that extent. For cache = True, data over a full day will be
+  requested and the response is subsetted. When there are valid data in the
+  requested interval, the SuperMAG API returns fill values on the timestamps
+  with no valid data.
+  """
+  station = 'DRV'
+  extent = 86400
+  start = '1970-01-01T00:00Z'
+  url = f'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start={start}&extent={extent}&logon={userid}&station={station}&delta=none&baseline=none&mlt&geo&decl&sza'
+
+  url_data, error = get(url, format='json')
+  assert error is None, f"Error '{error}' fetching URL: {url}"
+
+  data, error = supermag.data(userid, station, '1970-01-01T00:00Z', extent, use_cache=use_cache)
+  assert error is None, f"Expected no error in response, found: {error}"
+  assert data == url_data, "Expected data from supermag.data() to match data from URL fetch"
+
+
+def test_options(userid=userid):
+  # Replace LOGON in urls with your actual SuperMAG user ID.
+  # Table: https://supermag.jhuapl.edu/line/?fidelity=low&start=2001-01-01T00%3A00%3A00.000Z&interval=2%3A00%3A00&stations=ABK&tab=view
   tests = [
     {
       'comment': "On table page, 'Subtract Baseline' selected and 'Subtract start value' unchecked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=all&mlt&geo&decl&sza',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=LOGON&station=ABK&delta=none&baseline=all&mlt&geo&decl&sza',
       'options': {'extent': 60, 'baseline': 'all', 'delta': 'none'},
       'expected': [{"tval":978307200.000000, "ext": 60.000000, "iaga": "ABK", 'glon': 18.82, 'glat': 68.349998, "mlt": 1.617976, "mcolat": 24.785370, "decl": 5.068689, "sza": 133.343750, "N": {"nez": -0.798087, "geo": -0.622084}, "E": {"nez": -1.956784, "geo": -2.019643}, "Z": {"nez": 3.239859, "geo": 3.239859}}]
     },
     {
       'comment': "On table page, 'Subtract Baseline' selected and 'Subtract start value' checked",
-      'table': '',
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=all&mlt&geo&decl&sza',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=LOGON&station=ABK&delta=start&baseline=all&mlt&geo&decl&sza',
       'options': {'extent': 120, 'baseline': 'all', 'delta': 'start'},
       'expected':
         [
@@ -76,13 +100,13 @@ def test_options(userid=userid):
 
     {
       'comment': "On table page, 'Do Not Remove Daily Baseline' selected and 'Subtract start value' unchecked",
-      'url': "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=yearly&mlt&geo&decl&sza",
+      'url': "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=LOGON&station=ABK&delta=none&baseline=yearly&mlt&geo&decl&sza",
       'options': {'extent': 60, 'baseline': 'yearly', 'delta': 'none'},
       'expected': [{"tval":978307200.000000, "ext": 60.000000, "iaga": "ABK", 'glon': 18.82, 'glat': 68.349998, "mlt": 1.617976, "mcolat": 24.785370, "decl": 5.068689, "sza": 133.343750, "N": {"nez": -2.192383, "geo": -2.187099}, "E": {"nez": 0.037229, "geo": -0.156614}, "Z": {"nez": -1.468750, "geo": -1.468750}}]
     },
     {
       'comment': "On table page, 'Do Not Remove Daily Baseline' selected and 'Subtract start value' checked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=yearly&mlt&geo&decl&sza',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=LOGON&station=ABK&delta=start&baseline=yearly&mlt&geo&decl&sza',
       'options': {'extent': 120, 'baseline': 'yearly', 'delta': 'start'},
       'expected':
         [
@@ -93,13 +117,13 @@ def test_options(userid=userid):
 
     {
       'comment': "On table page, 'Do Not Remove Any Baseline' selected and 'Subtract start value' unchecked and 'Subtract median value' unchecked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=superhapi&station=ABK&delta=none&baseline=none&mlt&decl&sza&glat&glon',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=60&logon=LOGON&station=ABK&delta=none&baseline=none&mlt&decl&sza&glat&glon',
       'options': {'extent': 60, 'baseline': 'none', 'delta': 'none'},
       'expected': [{"tval":978307200.000000, "ext": 60.000000, "iaga": "ABK", 'glon': 18.82, 'glat': 68.349998, "mlt": 1.617976, "mcolat": 24.785370, "decl": 5.068689, "sza": 133.343750, "N": {"nez": 11490.268555, "geo": 11445.125093}, "E": {"nez": 2.384387, "geo": 1017.540544}, "Z": {"nez": 51368.906250, "geo": 51368.906250}}]
     },
     {
       'comment': "On table page, 'Do Not Remove Any Baseline' selected and 'Subtract start value' checked and 'Subtract median value' unchecked",
-      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=superhapi&station=ABK&delta=start&baseline=none&mlt&decl&sza&glat&glon',
+      'url': 'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=2001-01-01T00:00Z&extent=120&logon=LOGON&station=ABK&delta=start&baseline=none&mlt&decl&sza&glat&glon',
       'options': {'extent': 120, 'baseline': 'none', 'delta': 'start'},
       'expected':
           [
@@ -118,8 +142,8 @@ def test_options(userid=userid):
     data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', extent, delta=delta, baseline=baseline, use_cache=use_cache)
     if error is not None:
       assert False, f"Expected no error in response, found: {error}"
-    for r in range(len(expected)):
-      assert data[r] == expected[r], f"Expected response\n  {expected[r]}\ngot\n  {data[r]}"
+    for idx in range(len(expected)):
+      assert data[idx] == expected[idx], f"Expected response\n  {expected[idx]}\ngot\n  {data[idx]}"
 
 
 def test_full_day_request(userid=userid):
@@ -161,6 +185,7 @@ if __name__ == "__main__":
 
   test_default(userid=args.userid)
   test_format(userid=args.userid)
+  test_data(userid=args.userid)
   test_options(userid=args.userid)
   test_full_day_request(userid=args.userid)
   test_half_day_request(userid=args.userid)

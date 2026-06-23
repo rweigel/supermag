@@ -12,6 +12,7 @@ base_cmd = [sys.executable, '-m', 'supermag.data']
 
 tmpdir = tempfile.gettempdir()
 
+
 def test_help(userid=userid):
 
   cmd = base_cmd + ['--help']

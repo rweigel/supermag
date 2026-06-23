@@ -40,6 +40,43 @@ def data(userid,
           cache_dir=CONFIG['common']['output_dir'],
           cafile=None):
 
+  """Fetch data from the SuperMAG API.
+
+  ----
+  Args:
+    userid (str): The user ID for SuperMAG.
+
+    stationid (str): The three-letter IAGA station ID to fetch data for.
+    start (str): The start time for the data request.
+
+    extent (int) or start (str):
+      extent: The extent of the data request in seconds (exclusive, e.g. if 
+      extent=60, start=2001-01-01T00:00Z and extent=60, only data on 2001-01-01T00:00Z is returned for 1-minute cadence data.
+
+      start: The start time for the data request in ISO 8601 format (e.g., 2001-01-01T00:00:00Z).
+
+  Keyword Arguments:
+    baseline (str): The baseline to use for the data request. Allowed values are 'all', 'none', or 'yearly'.
+
+    delta (str): The delta to use for the data request. Allowed values are 'start' or 'none'.
+
+    format (str): The format of the data request. Allowed values are 'json', 'csv', 'csv-hapi', 'csv-hapi-noheader', and 'dataframe'.
+
+    parameters (list): The parameters to include in the output data.
+
+    cadence (str): The cadence of the data request. Only allowed value is 'PT1M' (one-minute).
+
+    cache (bool): Whether to cache the data.
+
+    use_cache (bool): Whether to use cached data.
+
+    cache_dir (str): The directory to use for caching data.
+
+    cafile (str): The CA file to use for the data request.
+
+  Returns:
+    tuple: A tuple containing (data, error), where `data` is the fetched data and `error` is any error encountered.
+  """
   _locals = locals()
   logger.debug("data() called with arguments:")
   for arg in _locals:
@@ -83,7 +120,12 @@ def data(userid,
       """
       raise ValueError(f"Invalid delta value: {delta}. Must be one of: {", ".join(deltas)}.")
 
-  _check_parameters(stationid, parameters, format)
+  if stationid == 'indices':
+      dataset_type = 'indices'
+  else:
+      dataset_type = 'mag'
+
+  _check_parameters(dataset_type, parameters, format)
 
   if isinstance(extent, str):
     extent = _stop_to_extent(start, extent)
@@ -91,10 +133,6 @@ def data(userid,
   # Preserve the originally requested extent for sub-setting
   extent_requested = extent
 
-  if stationid == 'indices':
-      dataset_type = 'indices'
-  else:
-      dataset_type = 'mag'
 
   if use_cache:
     # Try to load from cache
@@ -102,7 +140,6 @@ def data(userid,
     args = (cache_dir,
             stationid,
             dataset_type,
-            format,
             start,
             extent,
             extent_requested,
@@ -110,10 +147,11 @@ def data(userid,
             parameters,
             delta,
             baseline)
-    result, error = data_cache.get(*args)
-    if result is not None or error is not None:
-      return result, error
-
+    data = data_cache.get(*args)
+    if data is not None:
+      logger.debug(f"Subsetting JSON data to start={start}, extent={extent_requested}")
+      data = _subset_time(data, start, extent_requested)
+      return _reformat_json(data, dataset_type, parameters, format), None
 
   if cache:
     # When caching, always fetch from the start of the day and request an
@@ -172,16 +210,14 @@ def data(userid,
     if not write_error:
       logger.debug(f"Cache write successful for {stationid}")
 
+    # When cache=True, data request spans an integer number of full days.
+    logger.debug(f"Subsetting JSON data to start={start}, extent={extent_requested}")
     data_json = _subset_time(data_json, start, extent_requested)
 
-
-  data_json = _subset_parameters(data_json, parameters, format)
-
-  if format == 'json':
-    # No need to reformat.
+  if format == 'json' and parameters is None:
     return data_json, None
 
-  data = _reformat_json(data_json, dataset_type, format=format)
+  data = _reformat_json(data_json, dataset_type, parameters, format)
 
   return data, None
 
@@ -200,8 +236,17 @@ def _get_and_parse(url, stationid, dataset_type, format='json', cafile=None):
       logger.debug(error)
       return None, {'url': url, 'error': error}
 
+    if not isinstance(data_json, list):
+      return [], None
+
+    if len(data_json) == 0:
+      return [], None
+
+    if not isinstance(data_json[0], dict):
+      return {'url': url, 'error': "Malformed response from SuperMAG API. Expected an array of objects."}
+
     logger.debug("Keys in first row of JSON response:")
-    logger.debug(f"  {list(data_json[0].keys()) if data_json else 'no data'}")
+    logger.debug(f"  {list(data_json[0].keys())}")
 
   except Exception as error:
     emsg = f"data() failed for {stationid}"
@@ -223,7 +268,7 @@ def _stop_to_extent(start, extent):
   return extent
 
 
-def _check_parameters(dataset, parameters, format):
+def _check_parameters(dataset_type, parameters, format):
 
   import json
   import pathlib
@@ -235,16 +280,13 @@ def _check_parameters(dataset, parameters, format):
     raise ValueError(f"Invalid parameters value: {parameters}. Must be a None, list, tuple, or set.")
 
   if format == 'json':
-    if dataset == 'indices':
-      pass
-    else:
-      known_parameters = CONFIG['data']['mag']['response_parameters']
-      if not all(param in known_parameters for param in parameters):
-        unknown = [param for param in parameters if param not in known_parameters]
-        raise ValueError(f"Unknown parameter(s) requested: {unknown}. Allowed: {known_parameters}")
+    known_parameters = CONFIG['data'][dataset_type]['response_parameters']
+    if not all(param in known_parameters for param in parameters):
+      unknown = [param for param in parameters if param not in known_parameters]
+      raise ValueError(f"Unknown parameter(s) requested: {unknown}. Allowed: {known_parameters}")
     return
 
-  if dataset == 'indices':
+  if dataset_type == 'indices':
     file = 'catalog.indices.json'
   else:
     file = 'catalog.mag.json'
@@ -252,24 +294,84 @@ def _check_parameters(dataset, parameters, format):
   _catalog_file = pathlib.Path(__file__).parent / file
   logger.debug(f"Reading catalog file: {_catalog_file}")
   with open(_catalog_file) as f:
-    dataset = json.load(f)
+    catalog = json.load(f)
 
 
-def _reformat_json(data_json, dataset_type, format='json'):
+def _reformat_json(data_json, dataset_type, parameters, format):
   """Convert json response data to the requested format.
 
   `data_json` is the response from _parse_response().
   For list input, nested dicts are flattened (e.g. N.nez -> N_nez).
   """
-
+  import pandas
   from .config import config
+
+  if format == 'json':
+    if parameters is None:
+      return data_json
+    return _subset_json_parameters(data_json, parameters)
+
+  logger.debug(f"Reformatting json data to format: {format}")
 
   formats = config('data')['formats']
   if format not in formats:
     raise ValueError(f"Invalid format. Must be one of: {formats}.")
 
-  if format == 'json':
-    return data_json
+  if len(data_json) == 0:
+    # Return appropriate empty structure based on format.
+    # For CSV, we can't return the header 
+    if format.startswith('csv'):
+      return ''
+    if format == 'dataframe':
+      # Return empty dataframe
+      return pandas.DataFrame()
+
+
+  keys = config('data')[dataset_type]['response_parameters']
+  dicts = config('data')[dataset_type]['response_parameter_dicts']
+
+  wmsg = "Ignoring unknown key in first object of JSON data array: "
+  for key in data_json[0].keys():
+    if key not in keys:
+      logger.warning(f"{wmsg}'{key}'. Expected one of: {keys}")
+    if isinstance(data_json[0][key], dict):
+      for subkey in data_json[0][key].keys():
+        if subkey not in dicts[key]:
+          logger.warning(f"{wmsg}key '{subkey}' in '{key}' parameter object. Expected one of: {dicts.get(key, [])}")
+
+
+  # Determine columns that are known.
+  columns_known = []
+  for key in keys:
+    if key in dicts:
+      for subkey in dicts[key]:
+        columns_known.append(f"{key}_{subkey}")
+    else:
+      columns_known.append(key)
+
+  # Determine if any requested parameters are not valid columns.
+  for parameter in parameters:
+    if parameter not in columns_known:
+      raise ValueError(f"Requested parameter not known: {parameter}. Known parameters: {columns_known}")
+
+
+  # Determine which columns to keep based on requested parameters and
+  # maintain the order of columns as they appear in columns_known.
+  columns_keep = []
+  for parameter in columns_known:
+    if parameter in parameters:
+      columns_keep.append(parameter)
+
+  if 'tval' not in columns_keep:
+    # Always return tval
+    columns_keep = ['tval'] + columns_keep
+
+  # Flatten nested dicts in the JSON data. This converts nested dictionaries
+  # into columns with names of the form "key_subkey".
+  df = pandas.json_normalize(data_json, sep='_')
+
+  # Keep only columns requested in order set by columns_known.
+  df = df[columns_keep]
 
   if format == 'hapi-binary':
     #int64_cols = df.select_dtypes(include=['int64']).columns
@@ -277,32 +379,11 @@ def _reformat_json(data_json, dataset_type, format='json'):
     #  df[int64_cols] = df[int64_cols].astype('int32')
     pass
 
-  keys = config('data')[dataset_type]['response_parameters']
-  dicts = config('data')[dataset_type]['response_parameter_dicts']
-  columns = []
-  for key in keys:
-    if key in dicts:
-      for subkey in data_json[0][key]:
-        columns.append(f"{key}_{subkey}")
-    else:
-      columns.append(key)
-
-  # Warn if any columns in the data are not in the config columns.
-  unknown_columns = [col for col in data_json[0].keys() if col not in keys]
-  if unknown_columns:
-    logger.warning(f"Unknown column(s) in data: {unknown_columns}. Allowed: {keys}")
-
-
-  import pandas
-  df = pandas.json_normalize(data_json, sep='_')
-  # Keep only columns specified in config. Also sets order.
-  df = df[columns]
-
   if format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
     if format in ['csv-hapi', 'csv-hapi-noheader']:
+      # Drop tval and replace with parameter named Time in ISO 8601 format
       tval_iso = pandas.to_datetime(df['tval'], unit='s', utc=True).dt.strftime('%Y-%m-%dT%H:%MZ')
       df = df.drop(columns=['tval'])
-      # Prepend Time in ISO 8601 format
       df.insert(0, 'Time', tval_iso)
 
     for col in df.columns:
@@ -315,6 +396,7 @@ def _reformat_json(data_json, dataset_type, format='json'):
     include_header = format in ['csv', 'csv-hapi']
     return df.to_csv(index=False, header=include_header).rstrip()
 
+
   # Always prepend tval_datetime in dataframe
   if format == 'dataframe':
     tval_datetime = pandas.to_datetime(df['tval'], unit='s', utc=True)
@@ -322,6 +404,23 @@ def _reformat_json(data_json, dataset_type, format='json'):
     df.insert(0, 'tval_iso', tval_iso)
     df.insert(0, 'tval_datetime', tval_datetime)
     return df
+
+
+def _subset_json_parameters(data_json, parameters):
+  if parameters is None:
+    return data_json
+
+  logger.debug(f"Subsetting JSON data to parameters: {parameters}")
+  filtered = []
+  parameters = ['tval'] + parameters
+  for row in data_json:
+    row_filtered = {}
+    for key, value in row.items():
+      if key in parameters:
+        row_filtered[key] = value
+    filtered.append(row_filtered)
+
+  return filtered
 
 
 def _subset_time(data, start, extent):
@@ -370,22 +469,6 @@ def _subset_time(data, start, extent):
   logger.debug(f"  Subsetted end   {t_val2iso(data_subsetted[-1]['tval'])}")
 
   return data_subsetted
-
-
-def _subset_parameters(data_json, parameters, format):
-  if parameters is None:
-    return data_json
-
-  filtered = []
-  parameters = ['tval'] + parameters
-  for row in data_json:
-    row_filtered = {}
-    for key, value in row.items():
-      if key in parameters:
-        row_filtered[key] = value
-    filtered.append(row_filtered)
-
-  return filtered
 
 
 if __name__ == '__main__':

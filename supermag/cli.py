@@ -5,12 +5,14 @@ CONFIG = config()
 
 
 def parse_data_args():
-  import pathlib
   import sys
+  import pathlib
+  import inspect
+  from .data import data
 
   default_cache_dir = CONFIG['common']['output_dir']
 
-  description = 'Fetch SuperMAG station data via data().'
+  description = _unwrap_description(inspect.getdoc(data))
 
   epilog = """
   Examples:
@@ -185,7 +187,7 @@ def parse_samples_args():
   parser.add_argument(
     '--update',
     action='store_true',
-    help='Refetch location data even when cached location information found.',
+    help='Refetch sample data even when cached sample information found.',
   )
   _add_arg(parser, "print")
   _add_arg(parser, "cafile")
