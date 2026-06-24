@@ -4,177 +4,70 @@ from .config import config
 CONFIG = config()
 
 
-def get(cache_dir,
-              stationid,
-              dataset_type,
-              start,
-              extent,
-              extent_requested,
-              cadence,
-              parameters=None,
-              delta=None,
-              baseline=None):
+def read(output_dir, stationid, start, extent, cadence, delta, baseline):
 
-  if False:
-    _locals = locals()
-    logger.debug("data.get() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
+  import pickle
 
-  cached = _read(cache_dir,
-                stationid,
-                start,
-                extent,
-                cadence=cadence,
-                delta=delta,
-                baseline=baseline)
+  try:
+    cache_file = _path(output_dir, stationid, start, extent, cadence, delta, baseline)
+  except Exception as e:
+    logger.debug(f"Failed to construct cache file path: {e}")
+    return None
 
-  return cached
+  if not cache_file.exists():
+    logger.debug(f"Cache file does not exist: {cache_file}")
+    return None
+
+  try:
+    logger.debug(f"Reading cache file: {cache_file}")
+    with cache_file.open('rb') as f:
+      data = pickle.load(f)
+    return data
+  except Exception as e:
+    logger.error(f"Failed to read cache file {cache_file}: {e}")
+    return None
 
 
-def write(data_json,
-          cache_dir,
-          stationid,
-          dataset_type,
-          cadence,
-          parameters=None,
-          delta=None,
-          baseline=None):
-  """Write list of dicts and a dataframe to the cache in one-day chunks. No-op if data_json is falsy."""
+def write(data, output_dir, stationid, start, extent, cadence, delta, baseline):
+  try:
+    cache_file = _path(output_dir, stationid, start, extent, cadence, delta=None, baseline=None)
+  except Exception as e:
+    logger.debug(f"Failed to construct cache file path: {e}")
+    return None
 
-  from .util import t_val2iso
-
-  if not data_json:
-    return
-
-  # Group rows in data_json by date (UTC)
-  days = {} # Keys of date
-  for row in data_json:
-    date = t_val2iso(row['tval'])[0:10]
-    days.setdefault(date, []).append(row)
-
-  cache_dir = _path(cache_dir,
-                    stationid,
-                    cadence,
-                    parameters=parameters,
-                    delta=delta,
-                    baseline=baseline)
-
-  cache_dir.mkdir(parents=True, exist_ok=True)
-
-  for date, data_json in days.items():
-
-    logger.debug("Writing cache for data with ")
-    logger.debug(f"  first timestamp: {t_val2iso(data_json[0]['tval'])}")
-    logger.debug(f"  last timestamp:  {t_val2iso(data_json[-1]['tval'])}")
-    logger.debug(f"  number of records: {len(data_json)}")
-
-    try:
-      cache_file = cache_dir / f'{date}.json.pkl'
-      _write_atomic_pkl(cache_file, data_json)
-      logger.debug(f"Wrote: {cache_file}")
-    except Exception as e:
-      logger.debug(f"Failed to write cache file {cache_file}: {e}")
-      raise e
+  cache_file = _path(output_dir, stationid, start, extent, cadence, delta=delta, baseline=baseline)
+  try:
+    _write_atomic_pkl(cache_file, data)
+  except Exception as e:
+    logger.error(f"Failed to write cache file {cache_file}: {e}")
 
 
-def _path(cache_dir,
-               stationid,
-               cadence,
-               parameters=None,
-               delta=None,
-               baseline=None):
-
-  if False:
-    _locals = locals()
-    logger.debug("data._path() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
-
+def _path(output_dir, stationid, start, extent, cadence, delta, baseline):
 
   import pathlib
-  if cache_dir is None:
+  if output_dir is None:
     pkg_dir = pathlib.Path(__file__).resolve().parent.parent
-    cache_dir = pkg_dir / CONFIG['common']['output_dir']
+    output_dir = pkg_dir / pathlib.Path(CONFIG['common']['output_dir'])
   else:
-    cache_dir = pathlib.Path(cache_dir)
+    output_dir = pathlib.Path(output_dir)
 
-  cache_dir = cache_dir / 'cache'
+  cache_dir = output_dir / 'cache'
 
   if stationid == 'indices':
     sub_dir = pathlib.Path(f'indices/{cadence}')
-    return cache_dir / sub_dir
   else:
-    sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}")
+    baseline_str = baseline if baseline is not None else 'none'
+    delta_str = delta if delta is not None else 'none'
+    sub_dir = pathlib.Path(f"mag/{cadence}/{stationid}/baseline-{baseline_str}/delta-{delta_str}")
 
-  delta_str = str(delta) if delta is not None else 'none'
-  baseline_str = str(baseline) if baseline is not None else 'none'
-  cache_path = cache_dir / sub_dir / f"baseline-{baseline_str}" / f"delta-{delta_str}"
+  cache_file = pathlib.Path(f"{start}-{extent}.pkl")
+
+  cache_path = cache_dir / sub_dir / cache_file
+
   return cache_path
 
 
-def _read(cache_dir,
-          stationid,
-          start,
-          extent,
-          cadence='PT1M',
-          parameters=None,
-          delta=None,
-          baseline=None):
-  """Return cached data for full-day files from [start, start+extent). Returns None if any chunk is missing."""
-
-  if False:
-    _locals = locals()
-    logger.debug("data_cache._read() called with arguments:")
-    for arg in _locals:
-      logger.debug(f"  {arg}: {_locals[arg]}")
-
-
-  import pickle
-  import datetime
-
-  cache_dir = _path(cache_dir,
-                          stationid,
-                          cadence,
-                          parameters=parameters,
-                          delta=delta,
-                          baseline=baseline)
-
-  # Determine which UTC dates are needed
-  start_str = str(start).rstrip('Z').replace(' ', 'T')
-  for fmt in ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d'):
-    try:
-      tzinfo = datetime.timezone.utc
-      start_dt = datetime.datetime.strptime(start_str, fmt).replace(tzinfo=tzinfo)
-      break
-    except ValueError:
-      continue
-  else:
-    return None
-
-  secs_per_day = 60 * 60 * 24
-  n_days = max(1, (extent + secs_per_day - 1) // secs_per_day) if extent else 1
-  dates = [start_dt.date() + datetime.timedelta(days=i) for i in range(n_days)]
-
-  chunks = []
-  for date in dates:
-    cache_file = cache_dir / f'{date}.json.pkl'
-    if not cache_file.exists():
-      logger.debug(f"Cache miss: {cache_file}")
-      return None
-    logger.debug(f"Cache hit: {cache_file}")
-    with cache_file.open('rb') as f:
-      chunks.append(pickle.load(f))
-
-  # json: list of dicts
-  result = []
-  for chunk in chunks:
-    result.extend(chunk)
-
-  return result
-
-
-def _write_atomic_pkl(path, obj):
+def _write_atomic_pkl(path, data):
 
   # TODO: Write gzip-compressed pickle files (reduces file size by factor of 3)
   import os
@@ -182,11 +75,11 @@ def _write_atomic_pkl(path, obj):
   import secrets
 
   path.parent.mkdir(parents=True, exist_ok=True)
-  tmp_ext = f".{secrets.token_hex(3)}.tmp"
+  tmp_ext = f".{secrets.token_hex(6)}.tmp"
   tmp_path = path.with_suffix(path.suffix + tmp_ext)
   try:
     with tmp_path.open('wb') as f:
-      pickle.dump(obj, f)
+      pickle.dump(data, f)
     os.replace(tmp_path, path)
   except Exception:
     try:

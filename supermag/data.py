@@ -11,7 +11,7 @@ def indices(userid,
             format='json',
             cache=True,
             use_cache=True,
-            cache_dir=CONFIG['common']['output_dir'],
+            output_dir=CONFIG['common']['output_dir'],
             cafile=None):
 
   return data(userid,
@@ -22,7 +22,7 @@ def indices(userid,
               format=format,
               cache=cache,
               use_cache=use_cache,
-              cache_dir=cache_dir,
+              output_dir=output_dir,
               cafile=cafile)
 
 
@@ -37,7 +37,7 @@ def data(userid,
           cadence='PT1M',
           cache=True,      # If True, cache data
           use_cache=True,  # If False, request data and cache if cache=True.
-          cache_dir=CONFIG['common']['output_dir'],
+          output_dir=CONFIG['common']['output_dir'],
           cafile=None):
 
   """Fetch data from the SuperMAG API.
@@ -66,11 +66,11 @@ def data(userid,
 
     cadence (str): The cadence of the data request. Only allowed value is 'PT1M' (one-minute).
 
-    cache (bool): Whether to cache the data.
+    cache (bool): Whether to cache the data. Exact response is cached, so only cache hit for identical requests.
 
     use_cache (bool): Whether to use cached data.
 
-    cache_dir (str): The directory to use for caching data.
+    output_dir (str): The directory to use for caching data.
 
     cafile (str): The CA file to use for the data request.
 
@@ -130,40 +130,15 @@ def data(userid,
   if isinstance(extent, str):
     extent = _stop_to_extent(start, extent)
 
-  # Preserve the originally requested extent for sub-setting
-  extent_requested = extent
-
 
   if use_cache:
-    # Try to load from cache
     from supermag import data_cache
-    args = (cache_dir,
-            stationid,
-            dataset_type,
-            start,
-            extent,
-            extent_requested,
-            cadence,
-            parameters,
-            delta,
-            baseline)
-    data = data_cache.get(*args)
-    if data is not None:
-      logger.debug(f"Subsetting JSON data to start={start}, extent={extent_requested}")
-      data = _subset_time(data, start, extent_requested)
-      return _reformat_json(data, dataset_type, parameters, format), None
-
-  if cache:
-    # When caching, always fetch from the start of the day and request an
-    #  integer number of days.
-    start_original = start
-    extent_original = extent
-    start = start[0:10] + "T00:00Z"
-    seconds_per_day = 60 * 60 * 24
-    extent = ((extent + seconds_per_day - 1) // seconds_per_day) * seconds_per_day
-    logger.debug("cache=True =>")
-    logger.debug(f"  Adjusting start from {start_original} to {start}")
-    logger.debug(f"  Adjusting extent from {extent_original} to {extent}")
+    data_json = data_cache.read(output_dir, stationid, start, extent, cadence, delta, baseline)
+    if data_json is not None:
+      try:
+        data_json = _reformat_json(data_json, dataset_type, parameters, format)
+      except Exception as e:
+        return None, {'url': None, 'error': f"Failed to reformat cached data: {e}"}
 
 
   request_params_common = f"logon={userid}&start={start}&extent={extent}"
@@ -189,35 +164,18 @@ def data(userid,
   if error is not None:
     return None, error
 
-
   if cache:
-    write_error = False
-    try:
-      from supermag import data_cache
-      args = (
-        data_json,
-        cache_dir,
-        stationid,
-        dataset_type,
-        cadence,
-        delta,
-        baseline
-      )
-      data_cache.write(*args)
-    except Exception as e:
-      write_error = True
-      logger.error(f"Failed to write cache for {stationid}: {e}")
-    if not write_error:
-      logger.debug(f"Cache write successful for {stationid}")
+    from supermag import data_cache
+    data_cache.write(data_json, output_dir, stationid, start, extent, cadence, delta, baseline)
 
-    # When cache=True, data request spans an integer number of full days.
-    logger.debug(f"Subsetting JSON data to start={start}, extent={extent_requested}")
-    data_json = _subset_time(data_json, start, extent_requested)
 
   if format == 'json' and parameters is None:
     return data_json, None
 
-  data = _reformat_json(data_json, dataset_type, parameters, format)
+  try:
+    data = _reformat_json(data_json, dataset_type, parameters, format)
+  except Exception as e:
+    return None, {'url': url, 'error': e}
 
   return data, None
 
@@ -349,18 +307,21 @@ def _reformat_json(data_json, dataset_type, parameters, format):
     else:
       columns_known.append(key)
 
-  # Determine if any requested parameters are not valid columns.
-  for parameter in parameters:
-    if parameter not in columns_known:
-      raise ValueError(f"Requested parameter not known: {parameter}. Known parameters: {columns_known}")
 
+  if parameters is None:
+    columns_keep = columns_known
+  else:
+    # Determine if any requested parameters are not valid columns.
+    for parameter in parameters:
+      if parameter not in columns_known:
+        raise ValueError(f"Requested parameter not known: {parameter}. Known parameters: {columns_known}")
 
-  # Determine which columns to keep based on requested parameters and
-  # maintain the order of columns as they appear in columns_known.
-  columns_keep = []
-  for parameter in columns_known:
-    if parameter in parameters:
-      columns_keep.append(parameter)
+    # Determine which columns to keep based on requested parameters and
+    # maintain the order of columns as they appear in columns_known.
+    columns_keep = []
+    for parameter in columns_known:
+      if parameter in parameters:
+        columns_keep.append(parameter)
 
   if 'tval' not in columns_keep:
     # Always return tval

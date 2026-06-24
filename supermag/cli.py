@@ -10,8 +10,6 @@ def parse_data_args():
   import inspect
   from .data import data
 
-  default_cache_dir = CONFIG['common']['output_dir']
-
   description = _unwrap_description(inspect.getdoc(data))
 
   epilog = """
@@ -60,12 +58,6 @@ def parse_data_args():
     '--ignore-cache',
     action='store_true',
     help='Re-fetch data even if a cache file exists. Overwrite cache if request successful.'
-  )
-  parser.add_argument(
-    '--cache-dir',
-    default=default_cache_dir,
-    type=pathlib.Path,
-    help=f'Base directory for cache storage. Default: {default_cache_dir}.'
   )
   parser.add_argument(
     '--parameters',
@@ -257,7 +249,7 @@ def main_data():
       'format': args.format,
       'cache': args.cache,
       'use_cache': not args.ignore_cache,
-      'cache_dir': args.cache_dir,
+      'output_dir': args.output_dir,
       'cafile': args.cafile
     }
     result, error = indices(args.userid, args.start, args.extent, **kwargs)
@@ -269,7 +261,7 @@ def main_data():
       'format': args.format,
       'cache': args.cache,
       'use_cache': not args.ignore_cache,
-      'cache_dir': args.cache_dir,
+      'output_dir': args.output_dir,
       'cafile': args.cafile
     }
     result, error = data(args.userid, args.dataset, args.start, args.extent, **kwargs)

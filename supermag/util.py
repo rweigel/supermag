@@ -248,6 +248,11 @@ def t_val2iso(tval):
   from datetime import datetime, timezone
   return datetime.fromtimestamp(tval, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
 
+def iso_str2t_val(iso_str):
+  from datetime import datetime, timezone
+  dt = datetime.strptime(iso_str, '%Y-%m-%dT%H:%MZ')
+  dt = dt.replace(tzinfo=timezone.utc)
+  return dt.timestamp()
 
 def parse_timestamp(timestamp):
   """Parse an common ISO6801 string to a Unix timestamp."""

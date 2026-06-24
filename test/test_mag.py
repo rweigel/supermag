@@ -9,11 +9,6 @@ from util import userid, check_output, check_equivalent
 # Change to False after this script is complete.
 use_cache = False
 
-"""
-TODO:
-  * Test cache options
-"""
-
 def test_default(userid=userid):
 
   data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, use_cache=use_cache)

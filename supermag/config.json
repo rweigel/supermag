@@ -24,13 +24,22 @@
       "request_parameters_comment": "We always request all extra parameters for mag data requests. Note: mlt => response includes mlt, and mcolat. All others are single.",
 
       "response_parameters": ["tval", "ext", "iaga", "glon", "glat", "mlt", "mcolat", "decl", "sza", "N", "E", "Z"],
-      "response_parameter_dicts": {"N": ["nez", "geo"], "E": ["nez", "geo"], "Z": ["nez", "geo"]}
+      "response_parameter_dicts": {
+        "N": ["nez", "geo"],
+        "E": ["nez", "geo"],
+        "Z": ["nez", "geo"]
+      }
     },
     "indices": {
       "base_url": "https://supermag.jhuapl.edu/services/indices.php?python&nohead",
       "request_parameters": "indices=all&swi=all&imf=all",
       "response_parameters": ["tval", "SME", "SML", "SMLmlat", "SMLmlt", "SMLglat", "SMLglon", "SMLstid", "SMU", "SMUmlat", "SMUmlt", "SMUglat", "SMUglon", "SMUstid", "SMEnum", "SMEs", "SMLs", "SMLsmlat", "SMLsmlt", "SMLsglat", "SMLsglon", "SMLsstid", "SMUs", "SMUsmlat", "SMUsmlt", "SMUsglat", "SMUsglon", "SMUsstid", "SMEsnum", "SMEd", "SMLd", "SMLdmlat", "SMLdmlt", "SMLdglat", "SMLdglon", "SMLdstid", "SMUd", "SMUdmlat", "SMUdmlt", "SMUdglat", "SMUdglon", "SMUdstid", "SMEdnum", "SMEr", "SMLr", "SMLrmlat", "SMLrmlt", "SMLrglat", "SMLrglon", "SMLrstid", "SMUr", "SMUrmlat", "SMUrmlt", "SMUrglat", "SMUrglon", "SMUrstid", "SMErnum", "smr", "smr00", "smr06", "smr12", "smr18", "smrnum", "smrnum00", "smrnum06", "smrnum12", "smrnum18", "bgse", "bgsm", "vgse", "vgsm", "clockgse", "clockgsm", "density", "dynpres", "epsilon", "newell"],
-      "response_parameter_dicts": ["bgse", "bgsm", "vgse", "vgsm"]
+      "response_parameter_dicts": {
+        "bgse": ["X", "Y", "Z"],
+        "bgsm": ["X", "Y", "Z"],
+        "vgse": ["X", "Y", "Z"],
+        "vgsm": ["X", "Y", "Z"]
+      }
     }
   }
 }
