@@ -2,3 +2,5 @@ data/*
 supermag.egg-info/*
 __pycache__/
 supermag-data/
+# Ignore log files because they contain userid
+*\.log
