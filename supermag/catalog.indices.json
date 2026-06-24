@@ -1,5 +1,15 @@
 {
-  "indices_all": {
+  "indices": {
+  "id": null,
+  "title": "",
+  "info": {
+    "startDate": null,
+    "stopDate": null,
+    "cadence": null,
+    "description": "",
+    "datasetCitation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
+    "note": "",
+    "maxRequestDuration": "P1M",
     "parameters": [
       {
         "length": 24,
