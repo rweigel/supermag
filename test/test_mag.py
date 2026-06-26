@@ -48,7 +48,7 @@ def test_format(userid=userid):
   check_equivalent(all_formats)
 
 
-def test_data(userid=userid):
+def _run(station, start, extent, userid=userid):
   from supermag.util import get
 
   """
@@ -59,18 +59,22 @@ def test_data(userid=userid):
   requested interval, the SuperMAG API returns fill values on the timestamps
   with no valid data.
   """
-  station = 'DRV'
-  extent = 86400
-  start = '1970-01-01T00:00Z'
   url = f'https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start={start}&extent={extent}&logon={userid}&station={station}&delta=none&baseline=none&mlt&geo&decl&sza'
+
+  args = [userid, station, start, extent]
 
   url_data, error = get(url, format='json')
   assert error is None, f"Error '{error}' fetching URL: {url}"
 
-  data, error = supermag.data(userid, station, '1970-01-01T00:00Z', extent, use_cache=use_cache)
+  data0, error = supermag.data(*args, cache=False, use_cache=False)
   assert error is None, f"Expected no error in response, found: {error}"
-  assert data == url_data, "Expected data from supermag.data() to match data from URL fetch"
+  assert data0 == url_data, "Expected data from supermag.data() to match data from URL fetch"
 
+
+def test_data(userid=userid):
+  _run('DRV', '1970-01-01T00:00Z', 86400, userid=userid)
+  _run('ABK', '2001-01-01T00:00Z', 86400, userid=userid)
+  _run('ABK', '1979-01-01T00:00Z', 86400, userid=userid)
 
 def test_options(userid=userid):
   # Replace LOGON in urls with your actual SuperMAG user ID.

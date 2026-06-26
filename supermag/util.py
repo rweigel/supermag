@@ -106,7 +106,7 @@ def write_json_and_archive(data, file_path, archive_dir=None):
   if archive_dir is not None:
     archive_dir.mkdir(parents=True, exist_ok=True)
 
-  logger.info(f'Writing {path_relative_to_cwd(file_path)} with {len(data)} entries')
+  logger.info(f'Writing {path_relative_to_cwd(file_path)}')
   with file_path.open('w') as stream:
     json.dump(data, stream, indent=2)
     stream.write('\n')
@@ -127,7 +127,8 @@ def write_files(data,
                 stop,
                 station_id=None,
                 partial_inventory=False,
-                file_type='inventory'):
+                file_type='inventory',
+                url=None):
   """Write combined inventory/catalog JSON files and archive full writes.
 
   For full writes, writes to:
@@ -143,9 +144,6 @@ def write_files(data,
 
   output_dir = pathlib.Path(output_dir)
   output_dir.mkdir(parents=True, exist_ok=True)
-
-  if file_type not in ('inventory', 'catalog'):
-    raise ValueError(f"Invalid file_type: {file_type}")
 
   stem = _partial_output_stem(file_type=file_type,
                               station_id=station_id,
@@ -187,6 +185,8 @@ def write_files(data,
         'lastModified': last_modified,
         file_type: data,
       }
+      if url is not None:
+        payload['url'] = url
   else:
     output_file = output_dir / file_type / 'partial' / f'{stem}.json'
     archive_path = None
@@ -244,31 +244,41 @@ def move_log_files(log_files, dst_dir, archive=False):
       archive_dst.unlink()
 
 
-def t_val2iso(tval):
+def tval2iso(tval):
   from datetime import datetime, timezone
-  return datetime.fromtimestamp(tval, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
 
-def iso_str2t_val(iso_str):
-  from datetime import datetime, timezone
-  dt = datetime.strptime(iso_str, '%Y-%m-%dT%H:%MZ')
-  dt = dt.replace(tzinfo=timezone.utc)
-  return dt.timestamp()
+  if tval is None:
+    return None
+  try:
+    return datetime.fromtimestamp(tval, tz=timezone.utc).strftime('%Y-%m-%dT%H:%MZ')
+  except Exception:
+    return None
 
-def parse_timestamp(timestamp):
-  """Parse an common ISO6801 string to a Unix timestamp."""
+
+def parse_timestamp(timestamp, output="unix"):
+  """Parse a common ISO6801 string to a Unix timestamp."""
   from datetime import datetime, timezone
   timestamp_str = str(timestamp).rstrip('Z').replace(' ', 'T')
   fmts = ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%dT%H', '%Y-%m-%d')
+  dt = None
   for fmt in fmts:
     try:
-      return datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc).timestamp()
+      dt = datetime.strptime(timestamp_str, fmt).replace(tzinfo=timezone.utc)
     except ValueError:
       pass
     try:
-      return datetime.strptime(timestamp_str, fmt + "Z").replace(tzinfo=timezone.utc).timestamp()
+      dt = datetime.strptime(timestamp_str, fmt + "Z").replace(tzinfo=timezone.utc).timestamp()
     except ValueError:
       continue
-  raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
+
+  if dt is None:
+    raise ValueError(f"Cannot parse timestamp: '{timestamp_str}'. Allowed: {fmts} with optional 'Z' suffix.")
+
+  if output == "datetime":
+    return dt
+  else:
+    return dt.timestamp()
+
 
 
 def data_range():

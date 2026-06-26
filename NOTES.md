@@ -4,6 +4,14 @@ The following are notes on issues encountered split by whether they are relevant
 
 ## Wrong start
 
+Many stations don't return data on the [start day reported](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json). 
+See http://mag.gmu.edu/git-data/supermag/supermag-data/inventory/samples.json and search on "DateExpected" and "DateError".
+
+And when I try the reported start date at
+https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-08-31T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=T40, I get a spinner that never stops.
+
+We've worked around this by making requests to find the first day when the web service API returns data.
+
 ## Problem with Indices
 
 We've discussed before the fact that there is an issue with the server and indices. In the revised metadata, there is a dataset called `indices` that has all indices. There is no split.
@@ -72,13 +80,106 @@ and users will get an error instead of wrong data if they try it.
 
 Sandy had the max request duration set at one year. But I find it to be about 97 days.
 
-## Location Changes
+## Geographic Location Precision and Changes
+
+### Precision
+We had some error tests that failed because the [response for the station list](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json), e.g., 
+```
+"station": {
+  "name": "Dumont Durville",
+  "operator": [
+    "INTERMAGNET",
+    "BCMT"
+  ],
+  "glat": -66.67,
+  "glon": 140.01
+}
+```
+
+has `glat` and `glon` to two decimal places (corresponding to a precision of ~1 km on Earth's surface) but the data has six (corresponding to ~10 cm)
+
+```
+"data": {
+  "tval": 0.0,
+  "ext": 60.0,
+  "iaga": "DRV",
+  "glon": 140.009995,
+  "glat": -66.669998,
+  "mlt": null,
+  "mcolat": 90.0,
+  "decl": 180.0,
+  ...
+```
+
+### Changes
+
+
 
 ## The word "indice"
 
 The term "indice" is used in the client software as the singular form of "indices". It [is archaic](https://books.google.com/ngrams/graph?content=index%2Cindice&year_start=1800&year_end=2022&corpus=en&smoothing=3), and the people who derived geomagnetic indices (going back at least to [Mayaud](https://isgi.unistra.fr/Documents/References/Mayaud_GMS_1980.pdf)) used "index" or "indices", but not "indice".
 
 In the revised HAPI metadata, I've used index, but may change back to be consistent.
+
+## Inconsistent Responses
+
+This request returns no data at `tval=0.0` (1970-01-01T00:00:00.0Z)
+
+https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=1970-01-01&extent=60&station=DRV&delta=none&baseline=none&mlt&geo&decl&sza&logon=USERID
+
+Same if `extent=600`. If `extent=660`, data are returned:
+
+https://supermag.jhuapl.edu/services/data-api.php?python&nohead&start=1970-01-01&extent=660&station=DRV&delta=none&baseline=none&mlt&geo&decl&sza&logon=USERID
+
+Some servers also do this, but it is not recommended because it is somewhat unexpected. The HAPI server will reproduce this behavior and it is not a major issue. However, it may be associated with a subtle bug somewhere deep in the server code.
+
+## Question about `mlt`
+
+For the HAPI metadata, we need to know the correct fill values.
+
+curl "https://supermag.jhuapl.edu/services/data-api.php?python&nohead&logon=superhapi&start=1979-01-01&extent=86400&station=ABK&start=1979-01-01&extent=86400&baseline=none&delta=none&mlt&geo&decl&sza"
+
+I see
+```
+"mlt": null, "mcolat": 90.0, "decl": 180.0
+```
+
+Is `mlt=null` the fill value that is always used? Similar question for `mcolat` and `decl` (but see above for the fact that sometimes `decl=0.0` seems to be used as fill).
+
+The current HAPI server does not return any data for this time interval
+
+* https://supermag.jhuapl.edu/hapi/data?dataset=abk/baseline_none/PT1M/XYZ&parameters=Field_Vector,mlt&start=1979-01-01T00:00Z&stop=1980-01-02T00:00Z"
+
+* https://supermag.jhuapl.edu/hapi/data?dataset=abk/baseline_none/PT1M/NEZ&parameters=Field_Vector,mlt&start=1979-01-01T00:00Z&stop=1980-01-02T00:00Z
+
+I suspect it is due to not handling the `null`.
+
+## Question about `decl`
+
+At https://supermag.jhuapl.edu/line/?fidelity=low&start=1970-01-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&stations=PAF&tab=view decl `decl` is often 0 or 180 when the magnetic field data are fill values, but not always, e.g., at 00:32. 
+
+The IDL and Python client documentation states, "The Declination from IGRF Model ..." However, https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2012JA017683 describes a derivation of declination from the individual station data, not from IGRF (see Equation 2). The fact that decl is often 0 or 180 when the field values are filled suggests that when there is no field data, the individual station data are used for computing decl rather than the IGRF (otherwise, the 0 or 180 fill would not be needed because the IGRF model just needs a time and geographic location). Also declination is usually defined as the angle between local magnetic north and geographic north, not IGRF magnetic north.
+
+For the HAPI metadata, we would like to provide the correct definition of `decl`.
+
+## Question about `MLAT`
+
+At 
+https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK
+
+I see 65.35 for MLAT. In the data, e.g.,
+
+https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK
+
+I see
+
+```
+MCOLAT = 24.65 (MLAT=65.35) on 2005-01-01T00:00Z
+MCOLAT = 24.61 (MLAT=65.39) on 2005-07-01T00:00Z
+MCOLAT = 27.52 (MLAT=62.48) on 2005-12-31T00:00Z.
+```
+
+So is the MLAT in [the table](https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK) the AACGM MLAT on 2005-01-01T00:00Z and MLAT in the data the MLAT computed using the AACGM model?
 
 # Not relevant to HAPI server
 
@@ -96,11 +197,6 @@ In the IDL client documentation, it is clearer what the options on the web page 
 "none"	Do not subtract either the yearly or the daily NEZ baseline
 ```
 
-## Issues with `decl`
-
-At https://supermag.jhuapl.edu/line/?fidelity=low&start=1970-01-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&stations=PAF&tab=view decl `decl` is often 0 or 180 when the magnetic field data are fill values, but not always, e.g., at 00:32. 
-
-The IDL and Python client documentation states, "The Declination from IGRF Model ..." However, https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2012JA017683 describes a derivation of declination from the individual station data, not from IGRF. The fact that decl is often 0 or 180 when the field values are filled suggests that when there is no field data, the individual station data are used for computing decl rather than the IGRF (otherwise, the 0 or 180 fill would not be needed because the IGRF model just needs a time and geographic location).
 
 ## `delta=median` Option
 

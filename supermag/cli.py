@@ -215,6 +215,11 @@ def parse_catalog_args():
   _add_arg(parser, "output-dir")
   _add_arg(parser, "update-inventory")
   _add_arg(parser, "update-samples")
+  parser.add_argument(
+    '--use-cached-inventory',
+    action='store_true',
+    help='Used cached inventory. --update-inventory and --update-samples are ignored.',
+  )
   _add_arg(parser, "print")
   parser.add_argument(
     '--debug',
@@ -325,6 +330,7 @@ def main_catalog():
     'output_dir': args.output_dir,
     'update_inventory': args.update_inventory,
     'update_samples': args.update_samples,
+    'use_cached_inventory': args.use_cached_inventory,
     'dataset': args.dataset,
     'cafile': args.cafile
   }
@@ -479,7 +485,7 @@ def _add_arg(parser, arg, default=None):
     parser.add_argument(
       '--update-inventory',
       action='store_true',
-      help='Refetch and overwrite existing daily inventory files.',
+      help='Refetch and overwrite existing daily inventory files. If not set, only fetch missing inventory days.',
     )
   if arg == "update-samples":
     parser.add_argument(

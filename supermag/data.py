@@ -4,6 +4,28 @@ from .config import config
 CONFIG = config()
 
 
+def data_url(userid, stationid, start, extent, delta='none', baseline='none'):
+  request_params_common = f"logon={userid}&start={start}&extent={extent}"
+  # Always request all parameters; will subset as needed.
+  if stationid == 'indices':
+    url = CONFIG['data']['indices']['base_url']
+    request_parameters = CONFIG['data']['indices']['request_parameters']
+  else:
+    url = CONFIG['data']['mag']['base_url']
+    request_parameters = CONFIG['data']['mag']['request_parameters']
+    request_parameters_args = {
+      'station': stationid,
+      'start': start,
+      'extent': extent,
+      'delta': delta,
+      'baseline': baseline,
+    }
+    request_parameters = request_parameters.format(**request_parameters_args)
+
+  url += f"&{request_params_common}&{request_parameters}"
+
+  return url
+
 def indices(userid,
             start,
             extent,
@@ -137,28 +159,12 @@ def data(userid,
     if data_json is not None:
       try:
         data_json = _reformat_json(data_json, dataset_type, parameters, format)
+        return data_json, None
       except Exception as e:
         return None, {'url': None, 'error': f"Failed to reformat cached data: {e}"}
 
 
-  request_params_common = f"logon={userid}&start={start}&extent={extent}"
-  # Always request all parameters; will subset as needed.
-  if stationid == 'indices':
-    url = CONFIG['data']['indices']['base_url']
-    request_parameters = CONFIG['data']['indices']['request_parameters']
-  else:
-    url = CONFIG['data']['mag']['base_url']
-    request_parameters = CONFIG['data']['mag']['request_parameters']
-    request_parameters_args = {
-      'station': stationid,
-      'start': start,
-      'extent': extent,
-      'delta': delta,
-      'baseline': baseline,
-    }
-    request_parameters = request_parameters.format(**request_parameters_args)
-
-  url += f"&{request_params_common}&{request_parameters}"
+  url = data_url()
 
   data_json, error = _get_and_parse(url, stationid, dataset_type, format='json', cafile=cafile)
   if error is not None:
@@ -175,7 +181,7 @@ def data(userid,
   try:
     data = _reformat_json(data_json, dataset_type, parameters, format)
   except Exception as e:
-    return None, {'url': url, 'error': e}
+    return None, {'url': url, 'error': str(e)}
 
   return data, None
 
@@ -192,7 +198,7 @@ def _get_and_parse(url, stationid, dataset_type, format='json', cafile=None):
                            timeout=CONFIG['data']['timeout'])
     if error is not None:
       logger.debug(error)
-      return None, {'url': url, 'error': error}
+      return None, {'url': url, 'error': str(error)}
 
     if not isinstance(data_json, list):
       return [], None
@@ -210,7 +216,7 @@ def _get_and_parse(url, stationid, dataset_type, format='json', cafile=None):
     emsg = f"data() failed for {stationid}"
     logger.debug(emsg)
     error = Exception(f"{emsg}: {error}")
-    return None, {'url': url, 'error': error}
+    return None, {'url': url, 'error': str(error)}
 
   return data_json, None
 
@@ -420,14 +426,14 @@ def _subset_time(data, start, extent):
     logger.debug(f"  Subsetted last:  {data['tval_iso'].iloc[-1]}")
     return data
 
-  from .util import t_val2iso
+  from .util import tval2iso
   logger.debug(f"Subsetting data to start={start}, extent={extent}")
-  logger.debug(f"  Original start: {t_val2iso(data[0]['tval'])}")
-  logger.debug(f"  Original end:   {t_val2iso(data[-1]['tval'])}")
+  logger.debug(f"  Original start: {tval2iso(data[0]['tval'])}")
+  logger.debug(f"  Original end:   {tval2iso(data[-1]['tval'])}")
 
   data_subsetted = [row for row in data if start_ts <= row['tval'] < stop_ts]
-  logger.debug(f"  Subsetted start {t_val2iso(data_subsetted[0]['tval'])}")
-  logger.debug(f"  Subsetted end   {t_val2iso(data_subsetted[-1]['tval'])}")
+  logger.debug(f"  Subsetted start {tval2iso(data_subsetted[0]['tval'])}")
+  logger.debug(f"  Subsetted end   {tval2iso(data_subsetted[-1]['tval'])}")
 
   return data_subsetted
 

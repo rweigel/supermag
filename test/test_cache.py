@@ -42,11 +42,11 @@ def _run(station, extent, start, userid=userid):
   # Use cache is not relevant because no cache.
   data1, error = supermag.data(*args, cache=True)
   assert error is None, f"Expected no error in response, found: {error}"
-  from supermag.util import t_val2iso
-  print(t_val2iso(url_data[0]['tval']))
-  print(t_val2iso(data1[0]['tval']))
-  print(t_val2iso(url_data[-1]['tval']))
-  print(t_val2iso(data1[-1]['tval']))
+  from supermag.util import tval2iso
+  print(tval2iso(url_data[0]['tval']))
+  print(tval2iso(data1[0]['tval']))
+  print(tval2iso(url_data[-1]['tval']))
+  print(tval2iso(data1[-1]['tval']))
   assert data1 == url_data, "Expected data from supermag.data() to match data from URL fetch"
 
   print("")

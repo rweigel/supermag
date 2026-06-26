@@ -10,6 +10,7 @@ def catalog(userid,
           output_dir=CONFIG['common']['output_dir'],
           update_inventory=False,
           update_samples=False,
+          use_cached_inventory=False, # Set to True for testing edits to catalog.py
           dataset=None, # HAPI dataset ID to filter by
           cafile=None):
 
@@ -40,13 +41,26 @@ def catalog(userid,
     'cafile': cafile
   }
 
-  logger.info("Getting inventory")
-  inventory = inventory(userid, **kwargs)
+
+  inventory_json = None
+  if use_cached_inventory:
+    import json
+    import pathlib
+    try:
+      inventory_path = pathlib.Path(output_dir) / "inventory" / "inventory.json"
+      with inventory_path.open() as f:
+        inventory_json = json.load(f)['inventory']
+    except Exception as e:
+      logger.error(f"Failed to read {inventory_path}: {e}")
+
+  if inventory_json is None:
+    logger.info("Getting inventory")
+    inventory_json = inventory(userid, **kwargs)
 
   logger.info("Building catalog from inventory")
   cadence = 'PT1M'
   catalog = []
-  for entry in inventory:
+  for entry in inventory_json:
     for sub_dataset in ['baseline_none', 'baseline_yearly', 'baseline_all']:
       for sub_sub_dataset in ['XYZ', 'NEZ']:
 
@@ -62,7 +76,7 @@ def catalog(userid,
 
         catalog.append(dataset_metadata)
 
-  logger.info(f"Built catalog with {len(catalog)} datasets from {len(inventory)} magnetometer stations")
+  logger.info(f"Built catalog with {len(catalog)} datasets from {len(inventory_json)} magnetometer stations")
   if len(catalog) == 0:
     if filter:
       logger.warning("No HAPI datasets found given the start, stop, and dataset filters")
@@ -81,6 +95,10 @@ def catalog(userid,
 
   return catalog
 
+def _subtract_day(date):
+  import datetime
+  date_dt = datetime.datetime.strptime(date, '%Y-%m-%d') - datetime.timedelta(days=1)
+  return date_dt.strftime('%Y-%m-%d')
 
 def _dataset_template(dataset_id, inventory_entry):
 
@@ -106,8 +124,11 @@ def _dataset_template(dataset_id, inventory_entry):
   # Populate dataset metadata with the dataset ID, title, and inventory information
   dataset['id'] = dataset_id
   dataset['title'] = dataset['title'].format(station_id=station_id, station_name=station_name, cadence=cadence, baseline=baseline)
+
   dataset['info']['startDate'] = inventory_entry["startDate"]
-  dataset['info']['stopDate'] = inventory_entry["stopDate"]
+  # Add one day because HAPI stop is exclusive
+  dataset['info']['stopDate'] = _subtract_day(inventory_entry["startDate"])
+
   dataset['info']['cadence'] = cadence
   dataset['info']['description'] = dataset['info']['description'].format(title=dataset['title'])
 

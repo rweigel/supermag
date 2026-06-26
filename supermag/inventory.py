@@ -26,13 +26,17 @@ def inventory(userid,
   data, and lists of days when data are available. By default, start = 1970-01-01
   and stop is tomorrow's date UTC.
 
+  start and stop are interpreted as inclusive (an inventory will be returned on
+  both dates).
+
   Note that the returned inventory differs in structure from the inventory API,
   which returns a only list of station ids with data available in given a start
   and stop date range.
   ----
 
   Returns a dict with a key 'stations' containing a list where each item contains
-  a station id, start/stop dates, and additional information.
+  a station id, start/stop dates, and additional information. Both start and
+  stop are inclusive.
 
   If `include_samples` is `True`, location details beyond geographic location
   are added to each station's information. The details include a sample of data
@@ -45,6 +49,8 @@ def inventory(userid,
   updated if no data are returned or the request fails.
   """
 
+  from .util import write_files
+
   import pathlib
   output_dir = pathlib.Path(output_dir)
 
@@ -55,11 +61,15 @@ def inventory(userid,
   if stop is None:
     stop = stop_data
 
+  start = start[0:10]
+  stop = stop[0:10]
+
   from .util import parse_timestamp
   start_dt = parse_timestamp(start)
   stop_dt = parse_timestamp(stop)
   if stop_dt <= start_dt:
-    raise ValueError(f"Stop time must be after start time. Got start={start}, stop={stop}")
+    msg = f"Stop time must be after start time. Got start={start}, stop={stop}"
+    raise ValueError(msg)
 
   partial_inventory = False
   if start_dt > parse_timestamp(start_data):
@@ -71,7 +81,6 @@ def inventory(userid,
   from .util import path_relative_to_cwd
   logger.info(f"Output directory: {path_relative_to_cwd(output_dir)}")
 
-
   kwargs = {
     'output_dir': output_dir,
     'update': update_inventory
@@ -79,7 +88,8 @@ def inventory(userid,
   inventory_by_day = get_inventories(start, stop, **kwargs)
 
   inventory_by_station = {}
-  logger.info(f'Converting {len(inventory_by_day)} by-day inventory to by-id inventories')
+  msg = f'Converting {len(inventory_by_day)} by-day inventory to by-id inventories'
+  logger.info(msg)
   for inventory_date, station_ids in inventory_by_day.items():
     for sid in station_ids:
       if sid not in inventory_by_station:
@@ -91,7 +101,22 @@ def inventory(userid,
   logger.info("Restructuring inventory information")
   inventory_by_station = _restructure_inventory(inventory_by_station)
 
-  _add_station_info(inventory_by_station, cafile=cafile)
+  if not partial_inventory and station_id is None:
+    info, url, missing = _add_station_info(inventory_by_station, cafile=cafile)
+    if len(missing) != 0:
+      msg = f'{len(missing)} station(s) in station list not '
+      msg += f'found in inventory: {missing}'
+      logger.error(msg)
+    kwargs = {
+      'start': start,
+      'stop': stop,
+      'station_id': station_id,
+      'partial_inventory': False,
+      'file_type': 'stations',
+      'url': url
+    }
+    write_files(info, output_dir, **kwargs)
+
 
   # Filter inventory by station id if specified
   if station_id is not None:
@@ -101,6 +126,7 @@ def inventory(userid,
       return []
     logger.info(f'Filtered inventory to station {station_id}')
 
+
   if include_samples:
     kwargs = {
       'station_id': station_id,
@@ -109,24 +135,25 @@ def inventory(userid,
       'cafile': cafile
     }
     _add_sample_details(userid, inventory_by_station, **kwargs)
+    _add_location_issues(inventory_by_station)
+
 
   _print_summary(inventory_by_station)
+
 
   kwargs = {
     'start': start,
     'stop': stop,
     'station_id': station_id,
-    'partial_inventory': partial_inventory
+    'partial_inventory': partial_inventory,
+    'file_type': 'inventory'
   }
-  from .util import write_files
   write_files(inventory_by_station, output_dir, **kwargs)
 
   return inventory_by_station
 
 
-def get_inventories(start, stop,
-                    output_dir=CONFIG['common']['output_dir'],
-                    update=False):
+def get_inventories(start, stop, output_dir=CONFIG['common']['output_dir'], update=False):
   """Get inventories for a date range, using cached files if available if update is False."""
 
   import time
@@ -249,15 +276,23 @@ def _restructure_inventory(inventory):
         'id': station_id,
         'startDate': available_dates[0],
         'stopDate': available_dates[-1],
-        'availability': {'available_percent': 100.0}
+        'availability': {
+          'available_percent': 100.0
+        }
       }
 
     all_dates = _date_range(available_dates[0], available_dates[-1], format='str')
     if len(all_dates) != len(available_dates):
-      entry['availability']['available'] = available_dates
+      unavailable_dates = sorted(set(all_dates) - set(available_dates))
       available_percent = 100 * len(available_dates) / len(all_dates)
+
       entry['availability']['available_percent'] = round(available_percent, 2)
-      entry['availability']['unavailable'] = sorted(set(all_dates) - set(available_dates))
+      entry['availability']['available_number'] = len(available_dates)
+      #entry['availability']['available'] = available_dates
+
+      entry['availability']['unavailable_number'] = len(unavailable_dates)
+      #entry['availability']['unavailable'] = unavailable_dates
+
       station_days += len(available_dates)
     else:
       station_days += len(available_dates)
@@ -272,34 +307,46 @@ def _restructure_inventory(inventory):
 def _add_station_info(inventory, cafile=None):
   """Add station info returned by _get_station_info to inventory entries."""
 
+  from .config import config
+
+  url = config('inventory')['station_info_url']
+
   logger.info("Getting all station info")
-  station_info, station_info_error = _get_station_info(cafile=cafile)
-  if station_info_error is not None:
-    logger.warning(f"  Failed to fetch station info: {station_info_error}")
-    station_info = {}
+  info, info_error = _get_station_info(url, cafile=cafile)
+  if info_error is not None:
+    logger.warning(f"  Failed to fetch station info: {info_error}")
+    info = {}
     return
 
-  logger.info(f"  Station info has {len(station_info)} stations")
+  logger.info(f"  Station info has {len(info)} stations")
   logger.info("Adding station info to inventory entries")
   for entry in inventory:
-    if entry['id'] in station_info:
-      entry['station'] = station_info[entry['id']]
+    if entry['id'] in info:
+      entry['station'] = info[entry['id']]
+    else:
+      entry['stationError'] = f"Station not found in {url}"
+
+  missing_inventory = []
+  inventory_ids = [entry['id'] for entry in inventory]
+  for station_id in info:
+    if station_id not in inventory_ids:
+      missing_inventory.append(station_id)
+
+  return info, url, missing_inventory
 
 
-def _get_station_info(cafile=None):
+def _get_station_info(url, cafile=None):
   """Fetch station info from the SuperMAG API."""
 
   from .util import get
-  from .config import config
 
-  station_info_url = config('inventory')['station_info_url']
   kwargs = {
       'format': 'json',
       'cafile': cafile,
       'retry': CONFIG['inventory']['retry'],
       'timeout': CONFIG['inventory']['timeout']
   }
-  station_info, error = get(station_info_url, **kwargs)
+  station_info, error = get(url, **kwargs)
   if error is not None:
     return {}, error
 
@@ -315,6 +362,75 @@ def _get_station_info(cafile=None):
       item['glon'] = item.pop('geolon')
 
   return station_info, None
+
+
+def _add_location_issues(inventory_by_station):
+
+  def precision(number):
+    # Strip trailing zeros
+    num_str = str(number).rstrip('0')
+    if '.' in num_str:
+      return len(num_str.split('.')[1])
+    return 0  # Whole number
+
+  def add_issues(sample):
+
+    locationInformation = {
+      'firstRecordMatchesReported': True,
+      'firstRecordMatchesLast': True,
+    }
+
+    if 'sample' not in entry:
+      msg = "No sample information in inventory. Cannot check locations."
+      logger.error(msg)
+      raise ValueError(msg)
+
+    station_info = entry.get("station", None)
+
+    if station_info is not None:
+      reported = [station_info.get('glat', None), station_info.get('glon', None)]
+    else:
+      reported = [None, None]
+    locationInformation['reported'] = reported
+
+    sample = entry["sample"]
+    for where in ['firstRecord', 'lastRecord']:
+      record_val = sample.get("firstRecord", None)
+      if record_val is not None:
+        record_loc = [record_val['data'].get('glat', None), record_val['data'].get('glon', None)]
+      else:
+        record_loc = [None, None]
+      locationInformation[where] = record_loc
+
+    if locationInformation['firstRecord'] != locationInformation['lastRecord']:
+      locationInformation['firstRecordMatchesLast'] = False
+
+    if locationInformation['firstRecord'] != locationInformation['reported']:
+      locationInformation['firstRecordMatchesReported'] = False
+      # glat
+      if locationInformation['firstRecord'][0] is not None and locationInformation['reported'][0] is not None:
+        reported_precision = precision(locationInformation['reported'][0])
+        if round(locationInformation['firstRecord'][0], reported_precision) == locationInformation['reported'][0]:
+          locationInformation['firstRecordMatchesReported'] = True
+       # glon
+      if locationInformation['firstRecord'][1] is not None and locationInformation['reported'][1] is not None:
+        reported_precision = precision(locationInformation['reported'][0])
+        if round(locationInformation['firstRecord'][1], reported_precision) == locationInformation['reported'][0]:
+          locationInformation['firstRecordMatchesReported'] = True
+
+    ok = (locationInformation['firstRecordMatchesReported'],
+          locationInformation['firstRecordMatchesLast'])
+
+    if not all(ok):
+      locationInformation["comment"] = "First record compared to reported by rounding first record to precision of reported. First record compared to last using exact match."
+      entry["locationError"] = locationInformation
+
+
+  for entry in inventory_by_station:
+    try:
+      add_issues(entry)
+    except Exception as e:
+      entry['locationError'] = {'error': f"Error when attempting to check location: {e}"}
 
 
 def _add_sample_details(userid,
@@ -346,8 +462,7 @@ def _add_sample_details(userid,
   logger.info(f"Adding {msgo} to inventory entries")
   for entry in inventory:
     if entry['id'] in _samples:
-      entry['location'] = _samples[entry['id']]['location']
-      entry['sample'] = _samples[entry['id']]['sample']
+      entry['sample'] = _samples[entry['id']]
 
 
 def _print_summary(inventory):
@@ -402,10 +517,8 @@ def _print_summary(inventory):
 
 
     availability = entry.get('availability', {})
-    n_days = len(_date_range(entry['startDate'], entry['stopDate']))
-    available = f"{len(availability.get('available', []))}/{n_days}"
-    available += f" ({availability['available_percent']:.1f}%)"
-    logger.info(f"    Percentage of days available: {available}")
+    available_percent = availability.get("available_percent", "N/A")
+    logger.info(f"    Percentage of days available: {available_percent}")
 
 
     logger.info("  From station information request:")

@@ -7,9 +7,9 @@
     "cadence": null,
     "description": "{title} SuperMag ground-based magnetometer datasets have HAPI dataset IDs in the form IAGA_ID/CADENCE/BASELINE_OPTION/COORD_SYS, where IAGA_ID is the IAGA station code, CADENCE is the data cadence in ISO 8601 duration format, BASELINE_OPTION is the baseline removal option, and COORD_SYS is the coordinate system. BASELINE_OPTION is one of 'baseline_none' (no baseline removal), 'baseline_yearly' (yearly trend removed), or 'baseline_all' (yearly trend and daily variation removed). See Gjerloev, 2012 (https://doi.org/10.1029/2012JA017683) for details. COORD_SYS = 'XYZ' corresponds to geographic coordinates (X=North, Y=East, Z=vertical down); 'NEZ' corresponds to local geomagnetic coordinates (N=North, E=East, Z=vertical down). See https://supermag.jhuapl.edu/mag/?tab=description for additional details and a description of the parameters sza, decl, mcolat, and mlt.",
     "datasetCitation": "https://supermag.jhuapl.edu/info/?page=rulesoftheroad",
-    "note": "The geographic location given in this HAPI /info response metadata  corresponds to the geographic coordinates of the magnetometer station reported described at {station_info_doc} and obtained from {station_info_url}. This location may differ from the glat and glon values. See additionalMetadata",
+    "note": "The geographic location given in this HAPI /info response metadata corresponds to the geographic coordinates of the magnetometer station reported described at {station_info_doc} and obtained from {station_info_url}. This location may differ slightly from the glat and glon values. See additionalMetadata",
     "location": null,
-    "maxRequestDuration": "P1Y",
+    "maxRequestDuration": "P1M",
     "parameters": [
       {
         "length": 24,
@@ -58,21 +58,21 @@
         "name": "decl",
         "type": "double",
         "units": "degrees",
-        "fill": "0",
+        "fill": 0.0,
         "description": "time-averaged declination in degrees"
       },
       {
         "name": "glon",
         "type": "double",
         "units": "degrees",
-        "fill": "0",
+        "fill": 0.0,
         "description": "geographic longitude in degrees"
       },
       {
         "name": "glat",
         "type": "double",
         "units": "degrees",
-        "fill": "0",
+        "fill": 0.0,
         "description": "geographic latitude in degrees"
       }
     ]
