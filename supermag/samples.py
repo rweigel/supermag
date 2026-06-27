@@ -3,8 +3,6 @@ Usage:
   supermag-samples --help
 """
 
-from os import stat
-
 from .util import path_relative_to_cwd, logger
 from .config import config
 
@@ -51,6 +49,9 @@ def samples(userid,
 def _fetch_samples(userid, inventory, update=False, cafile=None):
 
   from .util import tval2iso
+  from .config import config
+
+  n_try = config('samples')['n_try']
 
   samples = {}
   for entry in inventory:
@@ -71,42 +72,55 @@ def _fetch_samples(userid, inventory, update=False, cafile=None):
     last_timestamp = tval2iso(last_record.get('tval', None))
     last_location = _location_info(last_record)
 
-    sample_info = {
-        'description': 'First and last records for all parameters from data request on start and stop days.',
-        'startDate': {'reported': start_isodate},
-        'stopDate': {'reported': stop_isodate},
-        'firstRecord': {
-          'timestamp': first_timestamp,
-          'url': first_url,
-          'location': first_location,
-          'data': first_record,
-        },
-        'lastRecord': {
-          'timestamp': last_timestamp,
-          'url': last_url,
-          'location': last_location,
-          'data': last_record
-        }
+    desc = 'First and last records for data request for all parameters on '
+    desc += 'start and stop dates determined by the inventory.'
+    info = {
+      'description': desc,
+      'startDate': {
+        'reported': start_isodate
+      },
+      'stopDate': {
+        'reported': stop_isodate
+      },
+      'firstRecord': {
+        'timestamp': first_timestamp,
+        'url': first_url,
+        'location': first_location,
+        'data': first_record,
+      },
+      'lastRecord': {
+        'timestamp': last_timestamp,
+        'url': last_url,
+        'location': last_location,
+        'data': last_record
       }
+    }
 
     if first_error is not None:
-      sample_info['firstRecord']['error'] = first_error
+      info['firstRecord']['error'] = first_error
     if last_error is not None:
-      sample_info['lastRecord']['error'] = last_error
+      info['lastRecord']['error'] = last_error
 
-    for day, record_key in [('startDate', 'firstRecord'), ('stopDate',  'lastRecord')]:
-      timestamp = sample_info[record_key]['timestamp']
+    tuples = [('startDate', 'firstRecord'), ('stopDate',  'lastRecord')]
+    for date, record_key in tuples:
+      timestamp = info[record_key]['timestamp']
       if timestamp is None:
-        sample_info[day]['found'] = None
-        sample_info[day][''] = True
+        info[date]['found'] = None
+        when = 'after' if date == 'startDate' else 'before'
+        desc = f'No data was found after attempting {n_try} days {when} the '
+        desc += f'{date} found from daily inventory requests.'
+        info[date]['error'] = desc
       else:
-        sample_info[day]['found'] = timestamp[0:10]
-        if timestamp[0:10] != sample_info[day]['reported']:
-          sample_info[day]['error'] = True
+        if timestamp[0:10] != info[date]['reported']:
+          info[date]['found'] = timestamp[0:10]
+          info[date]['error'] = True
+          which = 'first' if date == 'startDate' else 'last'
+          desc = f'The {which} day of available data does not match that found '
+          desc += 'found from daily inventory requests.'
+          info[date]['error'] = desc
+    samples[station_id] = info
 
-    samples[station_id] = sample_info
-
-    _print_summary(station_id, sample_info)
+    _print_summary(station_id, info)
 
   return samples
 
@@ -123,7 +137,7 @@ def _fetch_sample(userid,
   from .data import data, data_url
 
   logger.debug("")
-  logger.debug(f"Fetching location for station {station_id} on {isodate}")
+  logger.debug(f"Fetching location for {station_id} on {isodate}")
   extent = 60*60*24  # 1 day
 
   # update=True means refresh from source, so do not read from cache.
@@ -136,17 +150,17 @@ def _fetch_sample(userid,
   data, error = data(*args, **kwargs, use_cache=not update, cafile=cafile)
 
   if allow_retry and (error is not None or len(data) == 0):
-    msg = "No data returned for {station_id} on {which} date obtained from inventory requests."
-    logger.error(msg.format(station_id=station_id, which=value))
+    msg = f"No data returned for {station_id} on {value} date obtained from inventory requests."
+    logger.error(msg)
     return _fetch_sample_retry(userid, station_id, isodate, entry, value, update, cafile)
 
   if error is not None:
-    emsg = f"Failed to fetch data for station {station_id} on {isodate}: {error}"
+    emsg = f"Failed to fetch data for {station_id} on {isodate}: {error}"
     logger.error(emsg)
     return {}, url, emsg
 
   if not isinstance(data, list) or len(data) == 0:
-    emsg = f"No data returned for station {station_id} on {isodate}"
+    emsg = f"No data returned for {station_id} on {isodate}"
     logger.error(emsg)
     return {}, url, emsg
 
@@ -164,9 +178,10 @@ def _fetch_sample_retry(userid, station_id, isodate, entry, value, update, cafil
   """Try alternative days when the primary date returns no data."""
   from datetime import datetime, timedelta
 
+  n_try = config('samples')['n_try']
+
   # Could do binary search to reduce number of attempts, but for now try and
   # will report issue to SuperMAG.
-  n_try = 7
   if value == 'first':
     day_offsets = range(1, n_try + 1)
   else:
@@ -190,7 +205,7 @@ def _fetch_sample_retry(userid, station_id, isodate, entry, value, update, cafil
       break
 
   if error is not None or sample is None:
-    logger.error(f"  Failed find data after trying {n_try} days.")
+    logger.error(f"  Failed find data for {station_id} after trying {n_try} days.")
     if value == 'first':
       msg = "after reported start day"
     else:

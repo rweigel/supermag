@@ -10,7 +10,7 @@ dependencies = [
   "urllib3",
   "certifi",
   "pandas",
-  "utilrsw @ git+https://github.com/rweigel/utilrsw@924b7c3"
+  "utilrsw @ git+https://github.com/rweigel/utilrsw@e8463b0"
 ]
 
 [tool.setuptools.packages.find]

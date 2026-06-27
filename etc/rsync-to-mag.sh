@@ -1,1 +1,1 @@
-rsync -avz --delete ./data weigel@mag.gmu.edu:~/www/git-data/supermag
+rsync -avz --delete --exclude='cache/' ./supermag-data weigel@mag.gmu.edu:~/www/git-data/supermag

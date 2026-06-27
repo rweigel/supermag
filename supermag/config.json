@@ -10,6 +10,9 @@
     "station_info_url": "https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json",
     "station_info_url_desc": "https://supermag.jhuapl.edu/line/?tab=stationinfo"
   },
+  "samples": {
+    "n_try": 7
+  },
   "data": {
     "timeout": 60,
     "retry": 3,

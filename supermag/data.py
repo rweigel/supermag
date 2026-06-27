@@ -1,3 +1,5 @@
+from matplotlib import use
+
 from .util import logger
 
 from .config import config
@@ -164,7 +166,7 @@ def data(userid,
         return None, {'url': None, 'error': f"Failed to reformat cached data: {e}"}
 
 
-  url = data_url()
+  url = data_url(userid, stationid, start, extent, delta=delta, baseline=baseline)
 
   data_json, error = _get_and_parse(url, stationid, dataset_type, format='json', cafile=cafile)
   if error is not None:

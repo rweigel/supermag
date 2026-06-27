@@ -2,10 +2,15 @@ The following are notes on issues encountered split by whether they are relevant
 
 # Relevant to HAPI server
 
+## Inventory not Consistent with Station List
+
+The [station list](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json) returns more stations than in the combined station list found by making inventory requests on each day from 1970-01-01 through tomorrow.
+
+See [stations.error.log](http://mag.gmu.edu/git-data/supermag/supermag-data/stations/station.error.log).
+
 ## Wrong start
 
-Many stations don't return data on the [start day reported](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json). 
-See http://mag.gmu.edu/git-data/supermag/supermag-data/inventory/samples.json and search on "DateExpected" and "DateError".
+Many stations don't return data on the [start or stop day reported](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json). See [samples.json](http://mag.gmu.edu/git-data/supermag/supermag-data/inventory/samples.json) and search on "error". Some stations don't have data 7 days after the reported start or seven days before the reported end; Search on "No data".
 
 And when I try the reported start date at
 https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-08-31T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=T40, I get a spinner that never stops.
@@ -14,13 +19,13 @@ We've worked around this by making requests to find the first day when the web s
 
 ## Problem with Indices
 
-We've discussed before the fact that there is an issue with the server and indices. In the revised metadata, there is a dataset called `indices` that has all indices. There is no split.
+We've discussed before the fact that there is an issue with the current HAPI server and indices. In the revised metadata, there is a dataset called `indices` that has all indices. There is no split and the `indices_X` datasets have been removed as they were redundant and sometimes returning invalid data.
 
 ## Current HAPI server ignoring baseline option
 
-The current server returns the same values independent of baseline, which is the same result as shown in the [table at SuperMAG](https://supermag.jhuapl.edu/line/?fidelity=low&tab=view&start=2000-01-01T00%3A00%3A00.000Z&interval=00%3A05&stations=ABK&baseline=all&delta=none) with `Subtract baseline` selected (`baseline=all&delta=none`).
+The current HAPI server returns the same values independent of baseline. The values returned in all cases is the same result as that shown in the [table at SuperMAG](https://supermag.jhuapl.edu/line/?fidelity=low&tab=view&start=2000-01-01T00%3A00%3A00.000Z&interval=00%3A05&stations=ABK&baseline=all&delta=none) with only `Subtract baseline` selected (`baseline=all&delta=none`).
 
-```
+```bash
 + curl 'https://supermag.jhuapl.edu/hapi/data?dataset=abk/baseline_all/PT1M/NEZ&parameters=Field_Vector&start=2000-01-01T00:00:00Z&stop=2000-01-01T00:05:00Z'
 2000-01-01T00:00Z,-426.149872,180.963715,207.97319
 2000-01-01T00:01Z,-450.025208,185.115631,195.927826
@@ -60,7 +65,7 @@ The current server returns the same values independent of baseline, which is the
 2000-01-01T00:04Z,-394.602207,140.476657,222.785568
 ```
 
-Due to this, I suggest we use in the new server
+Due to this, I suggest we use in the new server dataset IDs of the form
 
 * `ABK/PT1M/NEZ` (baseline = none, delta=none)
 * `ABK/PT1M/XYZ` (baseline = none, delta=none)
@@ -69,7 +74,7 @@ Due to this, I suggest we use in the new server
 * `ABK/baseline_yearly/NEZ` (baseline = all, delta=none)
 * `ABK/baseline_yearly/XYZ` (baseline = all, delta=none)
 
-With the above, only responses for the last two will change. The first two correspond to no baseline removal (and no delta). The shorter name is consistent with INTERMAGNET and WDC, who use this form for the un-modified magnetic field measurements. We will remove
+With the above, only responses for the last two will change from the current HAPI server. The first two correspond to no baseline removal (and no delta). The shorter name is consistent with INTERMAGNET and WDC, who use this form for the un-modified magnetic field measurements. We will remove
 
 * `ABK/baseline_none/NEZ`
 * `ABK/baseline_none/XYZ`
@@ -78,13 +83,15 @@ and users will get an error instead of wrong data if they try it.
 
 ## Max Request Extent
 
-Sandy had the max request duration set at one year. But I find it to be about 97 days.
+The current HAPI server has the max request duration set at one year, but I find it to be about 97 days.
 
 ## Geographic Location Precision and Changes
 
 ### Precision
-We had some error tests that failed because the [response for the station list](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json), e.g., 
-```
+
+We had some error tests that failed because the [response for the station list](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json), e.g.,
+
+```json
 "station": {
   "name": "Dumont Durville",
   "operator": [
@@ -98,7 +105,7 @@ We had some error tests that failed because the [response for the station list](
 
 has `glat` and `glon` to two decimal places (corresponding to a precision of ~1 km on Earth's surface) but the data has six (corresponding to ~10 cm)
 
-```
+```json
 "data": {
   "tval": 0.0,
   "ext": 60.0,
@@ -111,15 +118,17 @@ has `glat` and `glon` to two decimal places (corresponding to a precision of ~1 
   ...
 ```
 
+We've changed the comparison to check that the data values rounded to two decimal places match the station list information. Even with this, there are some mismatches. Search on `"firstRecordMatchesReported": false` in (http://mag.gmu.edu/git-data/supermag/supermag-data/inventory/samples.json).
+
+We've also found cases where the values for `glat` and `glon` in the first record on the start date does not exactly match that in the last record on the stop date. Search on `"firstRecordMatchesLast": false` in (http://mag.gmu.edu/git-data/supermag/supermag-data/inventory/samples.json). The maximum difference corresponds to a change in location of ~3.7 km. This won't matter for most purposes, but in the past I have given presentations where I include a Google Maps image of the location of an ground magnetometer or GIC instrument and having an accurate location was useful.
+
 ### Changes
-
-
 
 ## The word "indice"
 
 The term "indice" is used in the client software as the singular form of "indices". It [is archaic](https://books.google.com/ngrams/graph?content=index%2Cindice&year_start=1800&year_end=2022&corpus=en&smoothing=3), and the people who derived geomagnetic indices (going back at least to [Mayaud](https://isgi.unistra.fr/Documents/References/Mayaud_GMS_1980.pdf)) used "index" or "indices", but not "indice".
 
-In the revised HAPI metadata, I've used index, but may change back to be consistent.
+In the revised HAPI metadata, I've used index, but may change back to be consistent. I am not sure if it is better to have the expected word or to be consistent with the terminology used in the SuperMAG clients.
 
 ## Inconsistent Responses
 

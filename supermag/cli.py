@@ -200,10 +200,15 @@ def parse_catalog_args():
     Full run:
       supermag-catalog --userid USERID
     Short tests:
-      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
-      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --dataset DRV --userid USERID --print
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID --print
+      supermag-catalog --start 1970-01-01 --stop 1970-01-03 --userid USERID --print
       supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --userid USERID
       supermag-catalog --start 1970-01-01 --stop 1970-01-03 --update-inventory --update-samples --userid USERID
+    Special cases:
+      Added info['note'] and location information in additionalMetadata array.
+        supermag-catalog --start 2008-01-21 --stop 2013-10-30 --dataset KRT --userid USERID --print
+
   """
 
   parser = _parser(description=description, epilog=epilog)

@@ -1,6 +1,7 @@
 # Usage:
 #   pytest test_inventory.py --userid USERID
 #   python test_inventory.py --userid USERID
+
 import supermag
 from util import userid
 
@@ -15,19 +16,34 @@ def test_short(userid=userid):
 
   inventory = supermag.inventory(userid, **kwargs)
 
-  assert inventory is not None, "Expected inventory to be non-None"
+  assert inventory is not None, "Expected inventory to be not None"
   assert isinstance(inventory, list), "Expected inventory to be a list"
   assert len(inventory) > 0, "Expected inventory to have at least one item"
+
   found = False
   for item in inventory:
-    assert isinstance(item, dict), "Expected each inventory item to be a dictionary"
-    for keys in ['id', 'startDate', 'stopDate', 'station', 'availability', 'location', 'sample']:
-      assert keys in item, f"Expected each inventory item to have a '{keys}' key"
-    assert 'glat' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
-    assert 'glon' in item['location']['firstRecord'], "Expected location.firstRecord to keep the location summary"
-    assert 'tval' in item['sample']['firstRecord'], "Expected sample.firstRecord to contain full data from data()"
+
+    msg = "Expected each inventory item to be a dictionary"
+    assert isinstance(item, dict), msg
+    keys_expected = [
+                      'id',
+                      'startDate',
+                      'stopDate',
+                      'station',
+                      'availability',
+                      'sample'
+                    ]
+    breakpoint()
+    for key in keys_expected:
+      msg = f"Expected each inventory item to have a '{key}' key"
+      assert key in item, msg
+
+    msg = "Expected sample.firstRecord to contain a tval key"
+    assert 'tval' in item['sample']['firstRecord']['data'], msg
+
     if item['id'] == 'DRV':
       found = True
+
   assert found, "Expected to find an inventory item with id 'DRV'"
 
   print("\n")
@@ -40,7 +56,8 @@ def test_short(userid=userid):
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)
-  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+  msg = "Expected cached inventory to match the previously fetched inventory"
+  assert inventory_cached == inventory, msg
 
   print("\n")
 
@@ -52,7 +69,8 @@ def test_short(userid=userid):
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)
-  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+  msg = "Expected cached inventory to match the previously fetched inventory"
+  assert inventory_cached == inventory, msg
 
   kwargs = {
     'start': '1970-01-01',
@@ -62,7 +80,8 @@ def test_short(userid=userid):
   }
 
   inventory_cached = supermag.inventory(userid, **kwargs)
-  assert inventory_cached == inventory, "Expected cached inventory to match the previously fetched inventory"
+  msg = "Expected cached inventory to match the previously fetched inventory"
+  assert inventory_cached == inventory, msg
 
 
 if __name__ == "__main__":

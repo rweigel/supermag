@@ -111,7 +111,7 @@ def _dataset_template(dataset_id, inventory_entry):
     dataset = json.load(f)
 
 
-  station_id, cadence, baseline, csys = dataset_id.split('/')
+  station_id, baseline, cadence, csys = dataset_id.split('/')
 
   station_info = inventory_entry.get('station', {})
   station_name = station_info.get('name', None)
@@ -123,7 +123,18 @@ def _dataset_template(dataset_id, inventory_entry):
 
   # Populate dataset metadata with the dataset ID, title, and inventory information
   dataset['id'] = dataset_id
-  dataset['title'] = dataset['title'].format(station_id=station_id, station_name=station_name, cadence=cadence, baseline=baseline)
+
+  cadence_str = '1-minute'
+  if cadence == 'PT1S':
+    cadence_str = '1-second'
+  kwargs = {
+    'station_id': station_id,
+    'station_name': station_name,
+    'cadence': cadence_str,
+    'baseline': baseline
+  }
+
+  dataset['title'] = dataset['title'].format(**kwargs)
 
   dataset['info']['startDate'] = inventory_entry["startDate"]
   # Add one day because HAPI stop is exclusive
@@ -163,12 +174,14 @@ def _dataset_template(dataset_id, inventory_entry):
     })
 
   # Add additional location metadata
-  location_info = inventory_entry.get('location', {})
-  if location_info is not None:
+  location_error = inventory_entry.get('locationError', None)
+  if location_error is not None:
     additionalMetadata.append({
       "name": "Location Details",
-      "content": location_info
+      "content": location_error
     })
+  else:
+    del dataset['info']['note']
 
   dataset['info']['additionalMetadata'] = additionalMetadata
 
