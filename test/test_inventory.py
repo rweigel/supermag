@@ -33,7 +33,7 @@ def test_short(userid=userid):
                       'availability',
                       'sample'
                     ]
-    breakpoint()
+
     for key in keys_expected:
       msg = f"Expected each inventory item to have a '{key}' key"
       assert key in item, msg

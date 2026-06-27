@@ -29,6 +29,13 @@ def read(output_dir, stationid, start, extent, cadence, delta, baseline):
 
 
 def write(data, output_dir, stationid, start, extent, cadence, delta, baseline):
+
+  if not data:
+    msg = "data = []. Not writing cache, becuase likely an error occurred in "
+    msg += "the SuperMAG API (it has returned '' when previous requests "
+    msg += "and the other endpoints are returning errors)."
+    logger.debug(msg)
+    return None
   try:
     cache_file = _path(output_dir, stationid, start, extent, cadence, delta=None, baseline=None)
   except Exception as e:

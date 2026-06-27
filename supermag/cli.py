@@ -76,7 +76,13 @@ def parse_data_args():
     '--output-file',
     default=None,
     type=pathlib.Path,
-    help='Path to write output. If not given, writes to supermag-{station}-{start}-{stop}-{baseline}-{delta}.{format}'
+    help='Path to write output. If not given, writes to OUTPUT_DIR/supermag-{station}-{start}-{stop}-{baseline}-{delta}.{format}'
+  )
+  parser.add_argument(
+    '--no-output-file',
+    default=None,
+    action='store_true',
+    help='Do not write output to a file.',
   )
 
   args = parser.parse_args()
@@ -88,10 +94,10 @@ def parse_data_args():
   args.stop  = args.stop[:16]  + 'Z'
 
   # Compute extent in seconds from start/stop
-  from datetime import datetime, timezone
-  fmt = '%Y-%m-%dT%H:%MZ'
-  start_dt = datetime.strptime(args.start, fmt).replace(tzinfo=timezone.utc)
-  stop_dt  = datetime.strptime(args.stop,  fmt).replace(tzinfo=timezone.utc)
+  from .util import parse_timestamp
+  start_dt = parse_timestamp(args.start, output='datetime')
+  stop_dt  = parse_timestamp(args.stop, output='datetime')
+
   if stop_dt <= start_dt:
     raise ValueError('--stop must be after --start')
   args.extent = int((stop_dt - start_dt).total_seconds())
@@ -103,10 +109,6 @@ def parse_data_args():
       args.cafile = None
     elif args.cafile.lower() == 'default':
       args.cafile = 'default'
-
-  if args.print:
-    if '--output-dir' in sys.argv or '--output-file' in sys.argv:
-      raise ValueError('--print cannot be used with --output-dir or --output-file')
 
   if args.parameters is not None:
     args.parameters = [token.strip() for token in args.parameters.split(',')]
@@ -281,10 +283,9 @@ def main_data():
     logger.error(f"Error message: {error['error']}")
     raise SystemExit(1)
   else:
-    if _print_data_if_requested(result, args.print, None, data_format=args.format):
-      return
-
-    _write_file_if_requested(result, args)
+    _print_data_if_requested(result, args.print, data_format=args.format)
+    if args.no_output_file is None:
+      _write_file_if_requested(result, args)
 
 
 def main_inventory():
@@ -304,7 +305,7 @@ def main_inventory():
   from .inventory import inventory
   inventory_dict = inventory(args.userid, args.start, args.stop, **kwargs)
 
-  _print_data_if_requested(inventory_dict, args.print, args.station_id)
+  _print_data_if_requested(inventory_dict, args.print)
   _move_logs('supermag-inventory', args, kind='inventory')
 
 
@@ -323,7 +324,7 @@ def main_samples():
   from .samples import samples
   samples_dict = samples(args.userid, **kwargs)
 
-  _print_data_if_requested(samples_dict, args.print, args.station_id)
+  _print_data_if_requested(samples_dict, args.print)
   _move_logs('supermag-samples', args, kind='samples')
 
 
@@ -344,8 +345,7 @@ def main_catalog():
   catalog_dict = catalog(args.userid, **kwargs)
 
   _move_logs('supermag-catalog', args, kind='catalog')
-
-  _print_data_if_requested(catalog_dict, args.print, args.dataset)
+  _print_data_if_requested(catalog_dict, args.print)
 
 
 def _parser(description=None, epilog=None):
@@ -374,9 +374,8 @@ def _unwrap_description(text):
   return '\n\n'.join(paragraphs)
 
 
-def _print_data_if_requested(data, print_arg, selector_arg=None, data_format='json'):
-  should_print = (print_arg is True) or (print_arg is None and selector_arg is not None)
-  if not should_print:
+def _print_data_if_requested(data, print_arg, data_format='json'):
+  if not print_arg:
     return False
 
   if data_format == 'json':
@@ -396,8 +395,6 @@ def _print_data_if_requested(data, print_arg, selector_arg=None, data_format='js
     print(pprint.pformat(data) + '\n')
   else:
     print(data)
-
-  return True
 
 
 def _write_file_if_requested(data, args):

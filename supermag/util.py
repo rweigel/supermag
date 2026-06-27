@@ -280,7 +280,6 @@ def parse_timestamp(timestamp, output="unix"):
     return dt.timestamp()
 
 
-
 def data_range():
   start_data = '1970-01-01'
   import datetime as dt

@@ -1,5 +1,11 @@
 The following are notes on issues encountered split by whether they are relevant to the HAPI server.
 
+# Error Conditions
+
+On 2026-06-27, I was getting `failed to fork /drive/...` for either inventory requests or a request for the [station list](https://supermag.jhuapl.edu/lib/services/?service=stations&fmt=json) (it started working before I could write down the drive path it gave and I don't recall if it was an inventory request or a station list request that triggered the error). At that time, data requests failed and the response was an empty body. We are using a search for the string `ERROR` in the data responses. Wit this new case, we also need to infer that an empty string means server-side error and not conclude that there is not data in the requested interval (which usually results in a response of `[]`).
+
+I suggest also using `HTTP 5xx` or `HTTP 4xx` response codes in the headers. When detected, we can look in the body to determine the actual error message reliably.
+
 # Relevant to HAPI server
 
 ## Inventory not Consistent with Station List
