@@ -1,6 +1,6 @@
-The following are notes on issues encountered split by whether they are relevant to the HAPI server.
+The following are notes on issues encountered. Section 1 describes minor issues that we would like to resolve, Section 2 are minor issues that may be of interest to SuperMAG, and Section 3 are major issues with the current HAPI server that will be fixed soon.
 
-# SuperMAG Issues Relevant to HAPI server
+# 1. SuperMAG Issues Relevant to HAPI server
 
 ## Wrong start
 
@@ -123,7 +123,9 @@ So is the MLAT in [the table](https://supermag.jhuapl.edu/line/?fidelity=low&sta
 
 We would like to document how `MLAT` is computed.
 
-# SuperMAG Issues Not Relevant to HAPI server
+
+
+# 2. SuperMAG Issues Not Relevant to HAPI server
 
 ## Inventory not Consistent with Station List
 
@@ -172,7 +174,7 @@ https://supermag.jhuapl.edu/indices/?fidelity=low&layers=SME.MLT&start=2001-01-0
 
 
 
-# Current HAPI Server Issues
+# 3. Current HAPI Server Issues
 
 These are issues that we need to fix.
 
