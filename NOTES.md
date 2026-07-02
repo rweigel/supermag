@@ -103,16 +103,11 @@ The IDL and Python client documentation states, "The Declination from IGRF Model
 
 For the HAPI metadata, we would like to provide the correct definition of `decl`.
 
-
-
-# SuperMAG Issues Not Relevant to HAPI server
-
 ## Question about `MLAT`
 
-At
-https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK
+At the [SuperMAG table](https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK)
 
-I see 65.35 for MLAT. In the data, e.g.,
+I see 65.35 for `MLAT`. In the data, e.g.,
 
 https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK
 
@@ -124,7 +119,11 @@ MCOLAT = 24.61 (MLAT=65.39) on 2005-07-01T00:00Z
 MCOLAT = 27.52 (MLAT=62.48) on 2005-12-31T00:00Z.
 ```
 
-So is the MLAT in [the table](https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK) the AACGM MLAT on 2005-01-01T00:00Z and MLAT in the data the MLAT computed using the AACGM model?
+So is the MLAT in [the table](https://supermag.jhuapl.edu/line/?fidelity=low&start=2005-07-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&tab=view&stations=ABK) the AACGM MLAT on 2005-01-01T00:00Z and `MLAT` in the data the `MLAT` computed using the AACGM model?
+
+We would like to document how `MLAT` is computed.
+
+# SuperMAG Issues Not Relevant to HAPI server
 
 ## Inventory not Consistent with Station List
 
