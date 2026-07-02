@@ -153,13 +153,13 @@ In the IDL client documentation, it is clearer what the options on the web page 
 
 ## `delta=median` Option
 
-With the web service API, it does not appear that with `baseline=none`, one can subtract the median baseline. When "Do Not Remove Any Baseline" is selected on the table: https://supermag.jhuapl.edu/line/?fidelity=low&start=1970-01-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&stations=PAF&tab=view&baseline=none&delta=median, there is a `delta=median` in the URL. With the web service API, one can set `delta=none` or `delta=start`, but not `delta=median`.
+With the web service API, it does not appear that with `baseline=none`, one can subtract the median baseline. When "Do Not Remove Any Baseline" is selected on [the table](https://supermag.jhuapl.edu/line/?fidelity=low&start=1970-01-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&stations=PAF&tab=view&baseline=none&delta=median), there is a `delta=median` in the URL. With the web service API, one can set `delta=none` or `delta=start`, but not `delta=median`.
 
 ## Issues with `decl`
 
 At https://supermag.jhuapl.edu/line/?fidelity=low&start=1970-01-01T00%3A00%3A00.000Z&interval=1%3A00%3A00&stations=PAF&tab=view decl `decl` is often 0 or 180 when the magnetic field data are fill values, but not always, e.g., at 00:32. 
 
-The IDL and Python client documentation states, "The Declination from IGRF Model ..." However, https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2012JA017683 describes a derivation of declination from the individual station data, not from IGRF. The fact that decl is often 0 or 180 when the field values are filled suggests that when there is no field data, the individual station data are used for computing decl rather than the IGRF (otherwise, the 0 or 180 fill would not be needed because the IGRF model just needs a time and geographic location).
+The IDL and Python client documentation states, "The Declination from IGRF Model ..." However, [Gjerloev 2012](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2012JA017683) describes a derivation of declination from the individual station data, not from IGRF. The fact that decl is often 0 or 180 when the field values are filled suggests that when there is no field data, the individual station data are used for computing decl rather than the IGRF (otherwise, the 0 or 180 fill would not be needed because the IGRF model just needs a time and geographic location).
 
 ## `SME.MLT` on SuperMAG site
 
