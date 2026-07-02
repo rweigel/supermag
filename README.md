@@ -1,6 +1,6 @@
 # supermag
 
-Alternative SuperMAG API and scripts for creating list of days where data are available for each ground magnetometer station and geographic location information.
+Alternative SuperMAG API and scripts for creating list of days where data are available for each ground magnetometer station and geographic location information. Will be used by the revised SuperMAG HAPI server.
 
 [Sample output](http://mag.gmu.edu/git-data/supermag)
 
