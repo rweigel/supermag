@@ -28,8 +28,8 @@ def check_output(data,
     keys_csv = [key for key in keys_raw if key not in ['N', 'E', 'Z']]
     keys_csv += ['N_nez', 'N_geo', 'E_nez', 'E_geo', 'Z_nez', 'Z_geo']
 
-  if format == 'csv-hapi':
-    keys_csv = ['Time'] + [key for key in keys_csv if key not in ['tval']]
+  if format == 'csv+':
+    keys_csv = ['Time'] + keys_csv
   if format == 'csv-hapi-noheader':
     keys_csv = ['Time'] + [key for key in keys_csv if key not in ['tval']]
 
@@ -60,7 +60,7 @@ def check_output(data,
       assert lines[0].split(',') == keys_csv, f"Expected CSV header keys {keys_csv} in output {output_target}, found {lines[0].split(',')}"
       data1 = lines[1].split(',')
 
-    if format.startswith('csv-hapi'):
+    if format.startswith('csv+'):
       assert data1[0] == str(tval_iso), f"Expected first CSV data line to start with '{tval_iso},', found {data1[0]}"
     else:
       assert data1[0] == str(tval), f"Expected first CSV data line to start with '{tval},', found {data1[0]}"

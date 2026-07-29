@@ -1,6 +1,6 @@
 {
   "id": null,
-  "title": "Data from magnetometer station {station_id} {station_name} at{cadence} cadence with baseline removal option '{baseline}'.",
+  "title": "Data from magnetometer station {station_id} {station_name} with baseline removal option '{baseline}' at {cadence} cadence in reference frame {frame}.",
   "info": {
     "startDate": null,
     "stopDate": null,

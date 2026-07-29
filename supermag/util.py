@@ -1,7 +1,25 @@
 import utilrsw
+
+_LOGGER_NAME = 'supermag'
+
 logger = utilrsw.logger(
+  name=_LOGGER_NAME,
   color=True,
   console_format='%(name)s %(levelname)s: %(message)s')
+
+
+def set_log_dir(log_dir):
+  """Reconfigure the supermag logger's file handlers to write to log_dir.
+
+  Since utilrsw.logger() re-fetches the logger by name (a Python logging
+  singleton), this updates the same Logger object in place, so existing
+  `from .util import logger` references elsewhere pick up the change.
+  """
+  utilrsw.logger(
+    name=_LOGGER_NAME,
+    color=True,
+    log_dir=str(log_dir),
+    console_format='%(name)s %(levelname)s: %(message)s')
 
 
 def get(url, format='json', cafile=None, retry=1, timeout=30):

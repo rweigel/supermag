@@ -16,7 +16,6 @@
   "data": {
     "timeout": 60,
     "retry": 3,
-    "formats": ["json", "dataframe", "csv", "csv-hapi", "csv-hapi-noheader"],
     "cadences": ["PT1M"],
     "mag": {
       "base_url": "https://supermag.jhuapl.edu/services/data-api.php?python&nohead",

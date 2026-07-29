@@ -53,6 +53,8 @@ def inventory(userid,
   from .util import write_files
 
   import pathlib
+  if output_dir is None:
+    output_dir = CONFIG['common']['output_dir']
   output_dir = pathlib.Path(output_dir)
 
   from .util import data_range

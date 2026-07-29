@@ -37,9 +37,10 @@ def test_extent_is_stop(userid=userid):
 
 
 def test_format(userid=userid):
+  from supermag.data import FORMATS
+
   all_formats = {}
-  CONFIG = supermag.config('data')
-  for format in CONFIG['formats']:
+  for format in FORMATS:
     data, error = supermag.data(userid, 'ABK', '2001-01-01T00:00:00Z', 60, format=format, use_cache=use_cache)
     assert error is None, f"Expected no error in response, found: {error}"
     check_output(data, dataset_type='mag', n_records=1, format=format)

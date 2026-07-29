@@ -5,6 +5,27 @@ from .util import logger
 from .config import config
 CONFIG = config()
 
+# Allowed values for the `format` argument of data() and their descriptions.
+# This is the single source of truth for the allowed formats; it is used to
+# validate the `format` argument, to build the `format` portion of data()'s
+# docstring, and (via supermag.cli) to build the --format argument's choices
+# and help text.
+FORMATS = {
+  'json': "the native JSON output format of the SuperMAG API represented as a list of dicts",
+  'csv': "a comma-separated representation of the json format returned as a string",
+  'csv+': "the same as 'csv' except the first column contains ISO 8601 timestamps",
+  'csv-hapi-noheader': "the HAPI CSV format with no JSON info header returned as a string",
+  'list': "'csv+' represented as a list of lists",
+  'dataframe': "a Pandas DataFrame representation of the json format with added ISO 8601 timestamp and datetime columns",
+}
+
+FORMATS_HELP = (
+  "Allowed values are "
+  + ", ".join(f"'{f}'" + (" (default)" if f == 'json' else '') for f in FORMATS)
+  + ". "
+  + " ".join(f"'{f}' is {description}." for f, description in FORMATS.items())
+)
+
 
 def data_url(userid, stationid, start, extent, delta='none', baseline='none'):
   request_params_common = f"logon={userid}&start={start}&extent={extent}"
@@ -27,6 +48,7 @@ def data_url(userid, stationid, start, extent, delta='none', baseline='none'):
   url += f"&{request_params_common}&{request_parameters}"
 
   return url
+
 
 def indices(userid,
             start,
@@ -84,7 +106,7 @@ def data(userid,
 
     delta (str): The delta to use for the data request. Allowed values are 'start' or 'none'.
 
-    format (str): The format of the data request. Allowed values are 'json', 'csv', 'csv-hapi', 'csv-hapi-noheader', and 'dataframe'.
+    format (str): The format of the data request. {FORMATS_HELP}
 
     parameters (list): The parameters to include in the output data.
 
@@ -110,9 +132,8 @@ def data(userid,
   from .util import check_userid
   check_userid(userid)
 
-  formats = CONFIG['data']['formats']
-  if format not in formats:
-    raise ValueError(f"Invalid format: {format}. Must be one of: {', '.join(formats)}.")
+  if format not in FORMATS:
+    raise ValueError(f"Invalid format: {format}. Must be one of: {', '.join(FORMATS)}.")
 
   cadences = CONFIG['data']['cadences']
   if cadence not in cadences:
@@ -186,6 +207,9 @@ def data(userid,
     return None, {'url': url, 'error': str(e)}
 
   return data, None
+
+
+data.__doc__ = data.__doc__.replace('{FORMATS_HELP}', FORMATS_HELP)
 
 
 def _get_and_parse(url, stationid, dataset_type, format='json', cafile=None):
@@ -279,15 +303,16 @@ def _reformat_json(data_json, dataset_type, parameters, format):
 
   logger.debug(f"Reformatting json data to format: {format}")
 
-  formats = config('data')['formats']
-  if format not in formats:
-    raise ValueError(f"Invalid format. Must be one of: {formats}.")
+  if format not in FORMATS:
+    raise ValueError(f"Invalid format. Must be one of: {', '.join(FORMATS)}.")
 
   if len(data_json) == 0:
     # Return appropriate empty structure based on format.
     # For CSV, we can't return the header 
     if format.startswith('csv'):
       return ''
+    if format == 'list':
+      return []
     if format == 'dataframe':
       # Return empty dataframe
       return pandas.DataFrame()
@@ -348,11 +373,14 @@ def _reformat_json(data_json, dataset_type, parameters, format):
     #  df[int64_cols] = df[int64_cols].astype('int32')
     pass
 
-  if format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
-    if format in ['csv-hapi', 'csv-hapi-noheader']:
-      # Drop tval and replace with parameter named Time in ISO 8601 format
-      tval_iso = pandas.to_datetime(df['tval'], unit='s', utc=True).dt.strftime('%Y-%m-%dT%H:%MZ')
-      df = df.drop(columns=['tval'])
+  if format in ['csv', 'csv+', 'csv-hapi-noheader', 'list']:
+    if format in ['csv+', 'csv-hapi-noheader', 'list']:
+      # TODO: This should depend on cadence so that when 1s cadence support is
+      # added, the timestamps have the correct precision.
+      tfmt = '%Y-%m-%dT%H:%MZ'
+      tval_iso = pandas.to_datetime(df['tval'], unit='s', utc=True).dt.strftime(tfmt)
+      if format == 'csv-hapi-noheader':
+        df = df.drop(columns=['tval'])
       df.insert(0, 'Time', tval_iso)
 
     for col in df.columns:
@@ -362,7 +390,12 @@ def _reformat_json(data_json, dataset_type, parameters, format):
       if df[col].apply(lambda x: isinstance(x, list)).any():
         df[col] = df[col].apply(lambda x: ','.join(str(v) for v in x) if isinstance(x, list) else x)
 
-    include_header = format in ['csv', 'csv-hapi']
+    if format == 'list':
+      # 'csv+' represented as a list of lists, with column names as the
+      # first row.
+      return [df.columns.tolist()] + df.values.tolist()
+
+    include_header = format in ['csv', 'csv+']
     return df.to_csv(index=False, header=include_header).rstrip()
 
 

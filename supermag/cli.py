@@ -5,10 +5,9 @@ CONFIG = config()
 
 
 def parse_data_args():
-  import sys
   import pathlib
   import inspect
-  from .data import data
+  from .data import data, FORMATS, FORMATS_HELP
 
   description = _unwrap_description(inspect.getdoc(data))
 
@@ -46,8 +45,8 @@ def parse_data_args():
   parser.add_argument(
     '--format',
     default='json',
-    choices=['json', 'csv', 'csv-hapi', 'csv-hapi-noheader', 'list', 'dataframe'],
-    help='Output format. Default: json.',
+    choices=list(FORMATS),
+    help=f'Output format. {FORMATS_HELP}',
   )
   parser.add_argument(
     '--no-cache',
@@ -225,7 +224,7 @@ def parse_catalog_args():
   parser.add_argument(
     '--use-cached-inventory',
     action='store_true',
-    help='Used cached inventory. --update-inventory and --update-samples are ignored.',
+    help='Used cached inventory. --start, --stop, --update-inventory, and --update-samples are ignored.',
   )
   _add_arg(parser, "print")
   parser.add_argument(
@@ -381,7 +380,7 @@ def _print_data_if_requested(data, print_arg, data_format='json'):
   if data_format == 'json':
     import json
     print(json.dumps(data, indent=2) + '\n')
-  elif data_format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
+  elif data_format in ['csv', 'csv+', 'csv-hapi-noheader']:
     print(data + '\n')
   elif data_format == 'dataframe':
     if False:
@@ -423,7 +422,7 @@ def _write_file_if_requested(data, args):
   if data_format == 'json':
     import json
     output_file.write_text(json.dumps(data, indent=2) + '\n')
-  elif data_format in ['csv', 'csv-hapi', 'csv-hapi-noheader']:
+  elif data_format in ['csv', 'csv+', 'csv-hapi-noheader']:
     output_file.write_text(data + '\n')
   elif data_format == 'dataframe':
     data.to_pickle(output_file)

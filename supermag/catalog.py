@@ -16,6 +16,9 @@ def catalog(userid,
 
   logger.info("Generating SuperMAG HAPI catalog")
 
+  if output_dir is None:
+    output_dir = CONFIG['common']['output_dir']
+
   filter = False
   if start is not None or stop is not None or dataset is not None:
     filter = True
@@ -95,10 +98,12 @@ def catalog(userid,
 
   return catalog
 
+
 def _subtract_day(date):
   import datetime
   date_dt = datetime.datetime.strptime(date, '%Y-%m-%d') - datetime.timedelta(days=1)
   return date_dt.strftime('%Y-%m-%d')
+
 
 def _dataset_template(dataset_id, inventory_entry):
 
@@ -111,7 +116,7 @@ def _dataset_template(dataset_id, inventory_entry):
     dataset = json.load(f)
 
 
-  station_id, baseline, cadence, csys = dataset_id.split('/')
+  station_id, baseline, cadence, frame = dataset_id.split('/')
 
   station_info = inventory_entry.get('station', {})
   station_name = station_info.get('name', None)
@@ -131,14 +136,15 @@ def _dataset_template(dataset_id, inventory_entry):
     'station_id': station_id,
     'station_name': station_name,
     'cadence': cadence_str,
-    'baseline': baseline
+    'baseline': baseline,
+    'frame': frame
   }
 
   dataset['title'] = dataset['title'].format(**kwargs)
 
   dataset['info']['startDate'] = inventory_entry["startDate"]
   # Add one day because HAPI stop is exclusive
-  dataset['info']['stopDate'] = _subtract_day(inventory_entry["startDate"])
+  dataset['info']['stopDate'] = _subtract_day(inventory_entry["stopDate"])
 
   dataset['info']['cadence'] = cadence
   dataset['info']['description'] = dataset['info']['description'].format(title=dataset['title'])
@@ -146,9 +152,9 @@ def _dataset_template(dataset_id, inventory_entry):
 
   # Update the Field_Vector description based on the coordinate system
   Field_Vector = dataset['info']['parameters'][1]
-  if csys == 'XYZ':
+  if frame == 'XYZ':
     Field_Vector['description'] =Field_Vector['description_XYZ']
-  elif csys == 'NEZ':
+  elif frame == 'NEZ':
     Field_Vector['description'] = Field_Vector['description_NEZ']
   del Field_Vector['description_XYZ']
   del Field_Vector['description_NEZ']
