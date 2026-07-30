@@ -1,5 +1,3 @@
-from matplotlib import use
-
 from .util import logger
 
 from .config import config
@@ -189,13 +187,15 @@ def data(userid,
 
   url = data_url(userid, stationid, start, extent, delta=delta, baseline=baseline)
 
-  data_json, error = _get_and_parse(url, stationid, dataset_type, format='json', cafile=cafile)
+  args = (url, stationid, dataset_type)
+  data_json, error = _get_and_parse(*args, format='json', cafile=cafile)
   if error is not None:
     return None, error
 
   if cache:
     from supermag import data_cache
-    data_cache.write(data_json, output_dir, stationid, start, extent, cadence, delta, baseline)
+    args = (output_dir, stationid, start, extent, cadence, delta, baseline, data_json)
+    data_cache.write(*args)
 
 
   if format == 'json' and parameters is None:
