@@ -194,7 +194,7 @@ def data(userid,
 
   if cache:
     from supermag import data_cache
-    args = (output_dir, stationid, start, extent, cadence, delta, baseline, data_json)
+    args = (data_json, output_dir, stationid, start, extent, cadence, delta, baseline)
     data_cache.write(*args)
 
 
